@@ -1,0 +1,21 @@
+# コミットしたときの処理
+# リント、フォーマット、TypeScriptの型チェックを行います。
+pre-commit:
+  parallel: true
+  commands:
+    biome-check:
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
+      run: pnpm biome check --write {staged_files}
+      stage_fixed: true
+
+    type-check:
+      glob: "*.{ts,tsx}"
+      run: pnpm tsc --noEmit
+
+# プッシュする前の処理
+# テストを実行し、成功した場合のみプッシュを許可します。
+pre-push:
+  commands:
+    test:
+      glob: "**/*.{ts,tsx}"
+      run: pnpm test --run

@@ -1,0 +1,31 @@
+{
+  "HomePage": {
+    "title": "Welcome to Next.js SSR",
+    "description": "A modern web application built with Next.js, TypeScript, and Tailwind CSS",
+    "getStarted": "Get Started",
+    "learnMore": "Learn More",
+    "welcome": "Welcome, {{name}}!"
+  },
+  "Navigation": {
+    "menu": "Menu"
+  },
+  "Common": {
+    "loading": "Loading...",
+    "logout": "Logout",
+    "defaultUser": "User"
+  },
+  "Auth": {
+    "signInTitle": "Sign in to your account",
+    "signInSubtitle": "Please enter your credentials to continue",
+    "email": "Email address",
+    "emailPlaceholder": "Enter your email",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "rememberMe": "Remember me",
+    "forgotPassword": "Forgot your password?",
+    "signIn": "Sign In",
+    "signingIn": "Signing in...",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up"
+  }
+}

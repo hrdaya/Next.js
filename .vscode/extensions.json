@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "biomejs.biome",
+    "wmaurer.change-case",
+    "streetsidesoftware.code-spell-checker",
+    "editorconfig.editorconfig",
+    "ctf0.env-symbol-provider",
+    "abierbaum.vscode-file-peek",
+    "lokalise.i18n-ally",
+    "oderwat.indent-rainbow",
+    "visualstudioexptteam.vscodeintellicode",
+    "bradlc.vscode-tailwindcss",
+    "shardulm94.trailing-spaces",
+    "redhat.vscode-yaml"
+  ]
+}

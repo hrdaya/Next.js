@@ -1,0 +1,21 @@
+{
+  "words": [
+    "appspec",
+    "autodocs",
+    "compornents",
+    "healthcheck",
+    "imagedefinitions",
+    "languagedetector",
+    "Laravel",
+    "lefthook",
+    "NEXTAUTH",
+    "nosniff",
+    "officedocument",
+    "openxmlformats",
+    "spreadsheetml",
+    "storysource",
+    "Vitest",
+    "winget"
+  ],
+  "ignorePaths": ["deploy"]
+}
