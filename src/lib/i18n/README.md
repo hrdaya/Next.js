@@ -1,53 +1,133 @@
-# 国際化（i18n）モジュール構成
+# Next.js App Router 対応 国際化（i18n）システム
 
 ## 📁 ファイル構成
 
 ```text
 src/lib/i18n/
-├── i18n.ts           # i18next設定とリソース管理（Client用）
-├── server.ts         # サーバーサイド専用i18n設定（SSR対応）
-├── I18nProvider.tsx  # React i18nプロバイダー（Client Component）
-└── README.md         # このドキュメント
+├── i18n.ts           # クライアントサイドi18next設定（ブラウザ言語検出）
+├── server.ts         # サーバーサイドi18n設定（HTTPヘッダー言語検出）
+├── I18nProvider.tsx  # React国際化プロバイダー（SSR/Hydration対応）
+└── README.md         # システム設計と使用方法（このファイル）
 
 src/locales/
 ├── en/
-│   └── common.json   # 英語翻訳ファイル
+│   └── common.json   # 英語翻訳リソース
 └── ja/
-    └── common.json   # 日本語翻訳ファイル
+    └── common.json   # 日本語翻訳リソース
 ```
 
-## 🌐 概要
+## 🌐 システム概要
 
-このプロジェクトでは、**SSR（Server-Side Rendering）対応**の多言語化システムを実装しています。
+### アーキテクチャ設計思想
 
-**Client Components**: `i18next`、`i18next-browser-languagedetector`、および`react-i18next`を使用
-**Server Components**: 専用のサーバーサイドi18n設定により、Accept-Languageヘッダーに基づく言語検出を実装
+このプロジェクトでは、**Next.js App Router**の**SSR（Server-Side Rendering）環境**に完全対応した
+国際化システムを実装しています。従来のi18next設定では発生しがちな**Hydrationエラー**を根本的に解決し、
+サーバーサイドとクライアントサイドで一貫した多言語体験を提供します。
 
-現在は英語（en）と日本語（ja）に対応しており、サーバーサイドではAccept-Languageヘッダー、クライアントサイドではブラウザの言語設定またはローカルストレージの設定に基づいて自動的に言語が切り替わります。
+### 技術的特徴
 
-## ⚙️ 設定
+#### 🔄 デュアルインスタンス設計
 
-### i18n.ts
+- **サーバーサイド**: HTTPヘッダーベースの言語検出（SEO最適化）
+- **クライアントサイド**: ブラウザ設定・localStorage連携（UX最適化）
+- **完全分離**: 相互干渉を防ぐ独立したi18nextインスタンス
 
-- **LanguageDetector**: ブラウザの言語設定を自動検出
-- **検出順序**: `localStorage` → `navigator` → `htmlTag`
-- **フォールバック言語**: 英語（en）
-- **SSR対応**: `useSuspense: false`でSSRとCSRの両方に対応
-- **キャッシュ**: ローカルストレージに言語設定を保存
+#### ⚡ パフォーマンス最適化
 
-### server.ts
+- **静的インポート**: 必要な翻訳リソースのみをバンドル
+- **遅延初期化**: Hydrationエラー防止のためのタイミング制御
+- **効率的キャッシュ**: localStorage活用でリロード高速化
 
-- **Server Components専用**: サーバーサイドで動作するi18n設定
-- **Accept-Language検出**: HTTPヘッダーから言語を自動検出
-- **Hydration対応**: クライアントとサーバーの言語設定を同期
-- **独立インスタンス**: i18n.createInstance()でクライアントと分離
+#### 🛡️ 型安全性
 
-### I18nProvider.tsx
+- **TypeScript完全対応**: 翻訳キーの型チェック
+- **実行時エラー防止**: 存在しないキーへの安全なアクセス
 
-- **Client Component**: `'use client'`ディレクティブ必須
-- **初期化管理**: `useEffect`でi18nextの初期化状態を確認
-- **SSR対応**: サーバーから受け取った初期言語を設定
-- **Hydration待機**: 初期化完了まで子コンポーネントの表示を制御
+### 対応言語
+
+現在サポート: **英語（en）**、**日本語（ja）**
+
+**言語検出ロジック:**
+
+- **サーバーサイド**: Accept-Languageヘッダー → フォールバック（en）
+- **クライアントサイド**: localStorage → navigator.language → HTMLタグ → フォールバック（en）
+
+## ⚙️ 各ファイルの詳細設計
+
+### `i18n.ts` - クライアントサイド国際化エンジン
+
+**役割**: ブラウザ環境でのi18next設定とリソース管理
+
+**核心機能:**
+
+- **静的リソース管理**: 翻訳ファイルの効率的なバンドリング
+- **ブラウザ言語検出**: LanguageDetectorによる多段階検出
+- **永続化**: localStorageを活用した言語設定の記憶
+- **React統合**: useTranslationフック等の提供
+- **SSR対応**: Hydrationエラー防止のための特別設定
+
+**重要な設定項目:**
+
+- `initImmediate: false` - Hydrationエラー防止の遅延初期化
+- `useSuspense: false` - SSR環境でのSuspense無効化
+- `detection.order` - 言語検出の優先順位制御
+- `fallbackLng: 'en'` - 安全なフォールバック言語
+
+**最適化ポイント:**
+
+- 条件分岐でSSR時のwindowオブジェクトアクセスを回避
+- エスケープ処理をReactに委譲してパフォーマンス向上
+
+### `server.ts` - サーバーサイド国際化エンジン
+
+**役割**: Server ComponentsとSSR環境での翻訳処理
+
+**核心機能:**
+
+- **HTTPヘッダー解析**: Accept-Languageの智的な言語検出
+- **独立インスタンス**: クライアントとの状態分離
+- **リクエスト単位管理**: セッション間の状態汚染防止
+- **SEO最適化**: 検索エンジン向けの適切な言語レンダリング
+
+**主要API:**
+
+```typescript
+// 言語検出付きインスタンス取得
+const { i18n, language } = await getServerI18n();
+
+// 直接翻訳取得（内部でgetServerI18n呼び出し）
+const text = await getServerTranslation('key', options);
+```
+
+**言語検出アルゴリズム:**
+
+1. Accept-Languageヘッダーをパース
+2. 品質値を無視して言語コードを抽出
+3. 地域コード除去（en-US → en）
+4. サポート言語との照合
+5. マッチしない場合は英語フォールバック
+
+### `I18nProvider.tsx` - Hydration対応プロバイダー
+
+**役割**: SSR/CSR環境でのシームレスな国際化体験の提供
+
+**核心機能:**
+
+- **遅延初期化管理**: useEffectでのタイミング制御
+- **サーバー言語同期**: SSRで検出された言語の継承
+- **Hydrationエラー防止**: 一貫したDOM構造の維持
+- **React Context提供**: 配下コンポーネントへの翻訳機能供給
+
+**Hydration対策の設計:**
+
+- 初期化完了を待たずに即座にレンダリング
+- I18nextProviderで一貫したコンテキスト提供
+- 非同期言語変更処理でブロッキング回避
+
+**Props設計:**
+
+- `children`: 標準的なReact子要素
+- `initialLanguage?`: SSRからの言語継承（オプション）
 
 ## 📋 各ファイルの役割
 
@@ -103,12 +183,12 @@ import { getServerTranslation, getServerI18n } from '@/lib/i18n/server';
 export default async function MyServerComponent() {
   // 基本的な翻訳
   const title = await getServerTranslation('HomePage.title');
-  
+
   // 動的な値の埋め込み
-  const welcome = await getServerTranslation('HomePage.welcome', { 
-    name: 'John' 
+  const welcome = await getServerTranslation('HomePage.welcome', {
+    name: 'John'
   });
-  
+
   // 言語情報も取得可能
   const { language } = await getServerI18n();
 

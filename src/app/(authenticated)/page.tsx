@@ -1,4 +1,4 @@
-import { HomePage } from '@/features/top/components/HomePage';
+import { DashboardPage } from '@/features/dashboard/components/DashboardPage';
 import { getServerSession } from '@/lib/auth/session';
 import { verifyTokenLocally } from '@/lib/auth/tokenVerification';
 import { getServerTranslation } from '@/lib/i18n/server';
@@ -36,7 +36,7 @@ export default async function Page() {
           </button>
         </form>
       </div>
-      <HomePage />
+      <DashboardPage />
     </div>
   );
 }

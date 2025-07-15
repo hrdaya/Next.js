@@ -1,27 +1,99 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* カスタムプロパティの定義 */
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #171717;
+
+  /* ダークモード用 */
+  --color-background-dark: #0a0a0a;
+  --color-foreground-dark: #ededed;
+
+  /* カスタムアニメーション */
+  --animate-float: float 6s ease-in-out infinite;
+
+  /* カスタムアニメーション遅延 */
+  --animation-delay-2000: 2s;
+  --animation-delay-4000: 4s;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* キーフレーム定義 */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
   }
 }
 
+/* ダークモードの設定 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: var(--color-background-dark);
+    --color-foreground: var(--color-foreground-dark);
+  }
+}
+
+/* ベーススタイル */
 body {
-  color: var(--foreground);
-  background: var(--background);
+  color: var(--color-foreground);
+  background: var(--color-background);
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* カスタムユーティリティクラス */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* カスタムアニメーション遅延 */
+  .animation-delay-2000 {
+    animation-delay: var(--animation-delay-2000);
+  }
+
+  .animation-delay-4000 {
+    animation-delay: var(--animation-delay-4000);
+  }
+
+  /* フロートアニメーション */
+  .animate-float {
+    animation: var(--animate-float);
+  }
+
+  /* バックドロップブラー */
+  .backdrop-blur-xl {
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  /* フォーカス内グループスタイル */
+  .group:focus-within .group-focus-within\:text-indigo-500 {
+    color: rgb(99 102 241);
+  }
+
+  /* スライドインアニメーション */
+  @keyframes slide-in-from-top {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-in {
+    animation-fill-mode: both;
+  }
+
+  .slide-in-from-top-2 {
+    animation: slide-in-from-top 0.3s ease-out;
+  }
+
+  .duration-300 {
+    animation-duration: 300ms;
   }
 }

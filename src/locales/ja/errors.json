@@ -1,0 +1,45 @@
+{
+  "notFound": {
+    "title": "ページが見つかりません",
+    "description": "お探しのページは存在しないか、移動された可能性があります。",
+    "suggestion": "URLを確認するか、ホームページから再度お探しください。",
+    "goHome": "ホームに戻る",
+    "goBack": "前のページに戻る",
+    "helpText": "問題が続く場合は、サポートまでお問い合わせください。"
+  },
+  "forbidden": {
+    "title": "アクセスが拒否されました",
+    "description": "このページにアクセスする権限がありません。",
+    "suggestion": "必要な権限を持っているか確認してください。",
+    "warningTitle": "権限エラー",
+    "warningMessage": "このリソースにアクセスするには、適切な認証情報または権限が必要です。",
+    "goHome": "ホームに戻る",
+    "goBack": "前のページに戻る",
+    "contactSupport": "サポートに問い合わせ",
+    "helpText": "アクセス権限に関する問題は、管理者にお問い合わせください。"
+  },
+  "internalServerError": {
+    "title": "サーバーエラーが発生しました",
+    "description": "申し訳ございません。サーバーで予期しないエラーが発生しました。",
+    "suggestion": "しばらく時間をおいてから再度お試しください。",
+    "technicalDetails": "技術的な詳細",
+    "errorId": "エラーID",
+    "retry": "再試行",
+    "goHome": "ホームに戻る",
+    "goBack": "前のページに戻る",
+    "reportIssue": "問題を報告",
+    "helpText": "問題が解決しない場合は、技術サポートまでお問い合わせください。"
+  },
+  "serviceUnavailable": {
+    "title": "サービス利用不可",
+    "description": "現在、サービスはメンテナンス中または一時的に利用できません。",
+    "suggestion": "しばらくお待ちいただいてから再度アクセスしてください。",
+    "maintenanceNotice": "メンテナンスのお知らせ",
+    "autoRetryIn": "{{time}}後に自動で再試行します",
+    "retryNow": "今すぐ再試行",
+    "retry": "再試行",
+    "goHome": "ホームに戻る",
+    "checkStatus": "ステータス確認",
+    "helpText": "メンテナンス情報については、公式ステータスページをご確認ください。"
+  }
+}

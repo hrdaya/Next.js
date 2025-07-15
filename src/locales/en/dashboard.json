@@ -1,0 +1,16 @@
+{
+  "welcome": "Dashboard",
+  "welcomeBack": "Welcome back, {{name}}!",
+  "quickStats": "Quick Stats",
+  "statsDescription": "Key metrics for your application",
+  "totalItems": "total items",
+  "recentActivity": "Recent Activity",
+  "activityDescription": "Latest updates and actions",
+  "newUpdates": "new updates",
+  "systemStatus": "System Status",
+  "statusDescription": "Current system operational status",
+  "operational": "Operational",
+  "viewAnalytics": "View Analytics",
+  "manageSettings": "Manage Settings",
+  "testPages": "Developer Test Pages:"
+}

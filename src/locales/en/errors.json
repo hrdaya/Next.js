@@ -1,0 +1,45 @@
+{
+  "notFound": {
+    "title": "Page Not Found",
+    "description": "The page you're looking for doesn't exist or has been moved.",
+    "suggestion": "Please check the URL or return to the homepage to continue browsing.",
+    "goHome": "Go Home",
+    "goBack": "Go Back",
+    "helpText": "If this problem persists, please contact our support team."
+  },
+  "forbidden": {
+    "title": "Access Denied",
+    "description": "You don't have permission to access this page.",
+    "suggestion": "Please verify that you have the necessary permissions.",
+    "warningTitle": "Permission Error",
+    "warningMessage": "Access to this resource requires proper authentication credentials or permissions.",
+    "goHome": "Go Home",
+    "goBack": "Go Back",
+    "contactSupport": "Contact Support",
+    "helpText": "For access permission issues, please contact your administrator."
+  },
+  "internalServerError": {
+    "title": "Internal Server Error",
+    "description": "Sorry, an unexpected error occurred on our server.",
+    "suggestion": "Please try again in a moment.",
+    "technicalDetails": "Technical Details",
+    "errorId": "Error ID",
+    "retry": "Retry",
+    "goHome": "Go Home",
+    "goBack": "Go Back",
+    "reportIssue": "Report Issue",
+    "helpText": "If the problem persists, please contact technical support."
+  },
+  "serviceUnavailable": {
+    "title": "Service Unavailable",
+    "description": "The service is currently under maintenance or temporarily unavailable.",
+    "suggestion": "Please wait a moment and try again.",
+    "maintenanceNotice": "Maintenance Notice",
+    "autoRetryIn": "Auto retry in {{time}}",
+    "retryNow": "Retry now",
+    "retry": "Retry",
+    "goHome": "Go Home",
+    "checkStatus": "Check Status",
+    "helpText": "For maintenance information, please check our official status page."
+  }
+}

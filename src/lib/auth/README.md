@@ -7,9 +7,9 @@ src/lib/auth/
 ├── AuthRequired.tsx      # 認証が必要なページ用のラッパーコンポーネント
 ├── index.ts             # ライブラリのエントリーポイント
 ├── jwt.ts               # JWT関連のユーティリティ関数（ローカル検証）
+├── middleware.ts        # 認証ミドルウェア処理
 ├── session.ts           # JWT Session管理 (httpOnly Cookie)
 ├── tokenVerification.ts # トークン検証処理（ローカル・外部）
-├── middleware.ts        # 認証ミドルウェア処理
 ├── utils.ts             # 認証ユーティリティ関数
 └── README.md            # このドキュメント
 ```
@@ -39,13 +39,15 @@ src/lib/auth/
 - 主要なコンポーネントと関数をエクスポート
 - 一括インポートを可能にする便利なインターフェース
 
-### `jwt.ts` (NEW!)
+### `jwt.ts`
 
 - JWTトークンのローカル検証機能
+- `decodeJWT()` - JWTペイロードのデコード
 - `isJWTValid()` - 有効期限チェック
 - `isJWTExpired()` - 期限切れチェック
-- `decodeJWT()` - JWTペイロードのデコード
+- `getJWTExpirationTime()` - 有効期限までの残り時間取得
 - `getJWTUserInfo()` - ユーザー情報の抽出
+- `JWTPayload` - JWTペイロードの型定義
 - 外部サーバーへの問い合わせなしで高速検証
 
 ### `session.ts`
@@ -53,6 +55,8 @@ src/lib/auth/
 - **httpOnly Cookie**を使用したJWT Session管理
 - `getServerSession()` - サーバーサイドでのJWT取得
 - `getClientSession()` - クライアントサイドでのJWT存在確認
+- `setJwtCookie()` - セキュアなJWTクッキーの設定
+- `clearJwtCookie()` - JWTクッキーの削除
 - Server Components、API Routes、ミドルウェアで使用
 - XSS攻撃からJWTトークンを保護する安全な実装
 
@@ -81,6 +85,25 @@ src/lib/auth/
 - コンポーネントや関数から独立した認証操作
 
 ## 🚀 使用方法
+
+### 基本的なインポート例
+
+```tsx
+// 必要な機能のみをインポート
+import {
+  AuthRequired,
+  signOut,
+  verifyTokenLocally,
+  isJWTValid,
+  getServerSession,
+  setJwtCookie,
+  type JWTPayload
+} from '@/lib/auth';
+
+// または特定モジュールから直接インポート
+import { isJWTValid } from '@/lib/auth/jwt';
+import { getServerSession } from '@/lib/auth/session';
+```
 
 ### AuthRequiredコンポーネントの使用
 
@@ -114,7 +137,7 @@ export default async function ProtectedPage() {
 
   // ユーザー情報も取得可能
   const { user } = verifyTokenLocally(token);
-  
+
   return <div>ようこそ、{user?.name}さん</div>;
 }
 ```
@@ -135,45 +158,100 @@ export async function GET(request: NextRequest) {
 
   // ローカル検証で高速チェック
   const { isValid, isExpired, user } = verifyTokenLocally(token);
-  
+
   if (!isValid || isExpired) {
     return NextResponse.json({ error: 'Token expired' }, { status: 401 });
   }
 
   // 認証済みAPI処理
-  return NextResponse.json({ 
+  return NextResponse.json({
     message: 'Protected data',
-    user: user 
+    user: user
   });
+}
+```
+
+### セッション管理（クッキー操作）
+
+```tsx
+// app/api/auth/signin/route.ts
+import { setJwtCookie, clearJwtCookie } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+
+// サインイン処理
+export async function POST(request: NextRequest) {
+  try {
+    const { email, password } = await request.json();
+
+    // 認証サーバーでユーザー認証
+    const response = await authenticateUser(email, password);
+
+    if (response.success && response.jwt) {
+      // 成功時：セキュアなJWTクッキーを設定
+      const apiResponse = NextResponse.json({
+        success: true,
+        user: response.user
+      });
+
+      setJwtCookie(apiResponse, response.jwt);
+      return apiResponse;
+    } else {
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      );
+    }
+  } catch (error) {
+    console.error('Signin error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// サインアウト処理
+export async function DELETE(request: NextRequest) {
+  const response = NextResponse.json({ success: true });
+
+  // JWTクッキーを安全に削除
+  clearJwtCookie(response);
+
+  return response;
 }
 ```
 
 ### JWT詳細検証
 
 ```tsx
-import { 
-  decodeJWT, 
-  getJWTExpirationTime, 
-  getJWTUserInfo 
+import {
+  decodeJWT,
+  getJWTExpirationTime,
+  getJWTUserInfo,
+  type JWTPayload
 } from '@/lib/auth';
 
-// JWT情報の詳細取得
+// JWT情報の詳細取得（型安全）
 export async function getTokenDetails(token: string) {
   try {
-    // ペイロードのデコード
-    const payload = decodeJWT(token);
-    
+    // ペイロードのデコード（型安全）
+    const payload: JWTPayload = decodeJWT(token);
+
     // 有効期限の残り時間（秒）
     const remainingTime = getJWTExpirationTime(token);
-    
+
     // ユーザー情報の抽出
     const userInfo = getJWTUserInfo(token);
-    
+
     return {
       payload,
       remainingTime,
       userInfo,
       expiresAt: new Date(payload.exp * 1000),
+      issuedAt: new Date(payload.iat * 1000),
+      subject: payload.sub,
+      email: payload.email,
+      name: payload.name,
     };
   } catch (error) {
     console.error('JWT parsing error:', error);
@@ -212,21 +290,19 @@ export async function validateWithRemoteServer(token: string) {
 import { handleAuthentication } from '@/lib/auth/middleware';
 import type { NextRequest } from 'next/server';
 
+/**
+ * Next.jsミドルウェアのメインエントリーポイント。
+ * リクエスト毎に実行され、認証状態をチェックします。
+ * @param request - 受信したNextRequestオブジェクト
+ * @returns NextResponseオブジェクト
+ */
 export async function middleware(request: NextRequest) {
+  // 認証ミドルウェアを実行
   return await handleAuthentication(request);
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next|static|favicon.ico).*)'],
 };
 ```
 
@@ -267,15 +343,23 @@ src/app/api/auth/
 src/app/(authenticated)/
 ├── layout.tsx            # 認証チェック付きレイアウト
 ├── page.tsx              # 保護されたホームページ
-├── error.tsx             # エラーページ
-├── forbidden.tsx         # 403ページ
-└── unauthorized.tsx      # 401ページ
+└── loading.tsx           # ローディングページ
 ```
 
 ### ミドルウェア設定
 
 ```text
 src/middleware.ts         # プロジェクトルートのミドルウェア
+```
+
+### エラーページ
+
+```text
+src/app/
+├── error.tsx             # エラーページ
+├── unauthorized.tsx      # 401 Unauthorized ページ
+├── forbidden.tsx         # 403 Forbidden ページ
+└── not-found.tsx         # 404 Not Found ページ
 ```
 
 ## 🛡️ セキュリティ特徴
@@ -326,7 +410,8 @@ const result = await verifyTokenWithAuthServer(token);
 # jwt.io でJWTトークンをデコードして内容確認
 
 # ローカル検証のテスト
-# コンソールで isJWTValid(token) を実行
+# コンソールで isJWTValid(token) を実行して有効性確認
+# コンソールで getJWTExpirationTime(token) で残り時間を確認
 
 # ミドルウェアログの確認
 # Next.js の開発サーバーコンソールをチェック
@@ -349,19 +434,3 @@ COOKIE_DOMAIN=localhost  # 本番では実際のドメイン
 - **無限リダイレクト**: `/signin` → `/unauthorized` のループが発生する場合は `handleSigninPageAuthentication` の実装を確認
 - **認証状態が更新されない**: httpOnly Cookie が正しくクリアされているかブラウザの開発者ツールで確認
 - **ミドルウェアが動作しない**: `middleware.ts` のファイル配置と `config.matcher` の設定を確認
-
----
-
-## 更新履歴
-
-- **2025-07-14**: ローカルJWT検証機能を追加
-  - `jwt.ts` 新規追加によるローカル検証機能の実装
-  - `AuthRequired.tsx` をライブラリ化（src/lib/auth配下に移動）
-  - `index.ts` 追加によるエントリーポイントの統一
-  - `verifyTokenLocally()` 関数の追加
-  - パフォーマンス最適化のためローカル検証を推奨に変更
-- **2025-07-13**: 実際のファイル構成に合わせて更新
-  - httpOnly Cookie ベースの認証システムに対応
-  - 実在しないファイル（AuthProvider.tsx等）を削除
-  - Mermaid 図を使用した認証フローの視覚化
-  - セキュリティ特徴とトラブルシューティングを追加

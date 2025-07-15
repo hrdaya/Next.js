@@ -1,0 +1,16 @@
+{
+  "welcome": "ダッシュボード",
+  "welcomeBack": "お帰りなさい、{{name}}さん",
+  "quickStats": "クイック統計",
+  "statsDescription": "アプリケーションの重要な指標",
+  "totalItems": "総アイテム数",
+  "recentActivity": "最近のアクティビティ",
+  "activityDescription": "最新の更新とアクション",
+  "newUpdates": "新しい更新",
+  "systemStatus": "システム状態",
+  "statusDescription": "現在のシステム稼働状況",
+  "operational": "稼働中",
+  "viewAnalytics": "分析を表示",
+  "manageSettings": "設定を管理",
+  "testPages": "開発用テストページ:"
+}

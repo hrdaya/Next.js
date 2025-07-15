@@ -6,7 +6,7 @@
 /**
  * JWT payload の型定義
  */
-interface JWTPayload {
+export interface JWTPayload {
   exp: number; // 有効期限 (Unix timestamp)
   iat: number; // 発行時刻 (Unix timestamp)
   sub?: string; // subject (通常はユーザーID)

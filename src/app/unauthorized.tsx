@@ -1,13 +1,14 @@
+import { SignIn } from '@/features/auth/components/SignIn';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '404',
+  title: 'ログイン',
 };
 
 export default function Page() {
   return (
-    <div>
-      <h1>404 Not Found</h1>
-    </div>
+    <>
+      <SignIn />
+    </>
   );
 }

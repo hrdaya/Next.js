@@ -1,11 +1,4 @@
 {
-  "HomePage": {
-    "title": "Next.js SSRへようこそ",
-    "description": "Next.js、TypeScript、Tailwind CSSで構築されたモダンなWebアプリケーション",
-    "getStarted": "始める",
-    "learnMore": "詳しく見る",
-    "welcome": "ようこそ、{{name}}さん"
-  },
   "Navigation": {
     "menu": "メニュー"
   },
@@ -13,19 +6,5 @@
     "loading": "読み込み中...",
     "logout": "ログアウト",
     "defaultUser": "ユーザー"
-  },
-  "Auth": {
-    "signInTitle": "アカウントにサインイン",
-    "signInSubtitle": "続行するには認証情報を入力してください",
-    "email": "メールアドレス",
-    "emailPlaceholder": "メールアドレスを入力",
-    "password": "パスワード",
-    "passwordPlaceholder": "パスワードを入力",
-    "rememberMe": "ログイン状態を保持",
-    "forgotPassword": "パスワードを忘れた場合",
-    "signIn": "サインイン",
-    "signingIn": "サインイン中...",
-    "noAccount": "アカウントをお持ちでない場合",
-    "signUp": "新規登録"
   }
 }
