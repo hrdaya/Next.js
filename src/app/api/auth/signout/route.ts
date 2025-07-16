@@ -1,16 +1,18 @@
-import { getServerSession } from '@/lib/auth/session';
+import { BACKEND_API_URL } from '@/constants';
+import { clearJwtCookie, getServerSession } from '@/lib/auth/session';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
+  let response: NextResponse;
+
   try {
     const jwt = await getServerSession();
-    const authServerUrl = process.env.BACKEND_API_URL;
 
     // 外部認証サーバーにログアウト通知
-    if (authServerUrl && jwt) {
+    if (jwt) {
       try {
-        await fetch(`${authServerUrl}/auth/signout`, {
+        await fetch(`${BACKEND_API_URL}/auth/signout`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${jwt}`,
@@ -24,32 +26,14 @@ export async function POST(request: NextRequest) {
         // 外部サーバーエラーでもローカルのCookieは削除する
       }
     }
-
-    const response = NextResponse.json({ success: true });
-
-    // httpOnlyのCookieを削除
-    response.cookies.set('auth-token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 0,
-      path: '/',
-    });
-
-    return response;
   } catch (error) {
     console.error('Signout error:', error);
-
-    // エラーが発生してもCookieは削除
-    const response = NextResponse.json({ success: true });
-    response.cookies.set('auth-token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 0,
-      path: '/',
-    });
-
-    return response;
+    // エラーが発生してもサインアウト処理は継続
+  } finally {
+    // 成功・エラーに関わらず、常にクッキーをクリアしてサインアウト完了を返す
+    response = NextResponse.json({ success: true });
+    clearJwtCookie(response);
   }
+
+  return response;
 }

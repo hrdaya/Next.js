@@ -6,5 +6,19 @@
     "loading": "Loading...",
     "logout": "Logout",
     "defaultUser": "User"
+  },
+  "ApiErrors": {
+    "getData": "Failed to fetch data.",
+    "createData": "Failed to create data.",
+    "updateData": "Failed to update data.",
+    "deleteData": "Failed to delete data.",
+    "uploadFile": "Failed to upload file.",
+    "downloadFile": "Failed to download file.",
+    "methodNotAllowed": "Method not allowed. [{{url}}]",
+    "optimisticLock": "Data has been updated by another user. Please reload the data.",
+    "maintenance": "System is under maintenance.",
+    "networkError": "Network communication failed.",
+    "internalServerError": "Internal server error occurred.",
+    "genericError": "{{status}} for {{url}}"
   }
 }

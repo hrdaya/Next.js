@@ -1,10 +1,11 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
-
 export const APP_CONFIG = {
   name: 'Next.js SSR App',
   version: '1.0.0',
   description: 'A modern web application built with Next.js',
 } as const;
+
+export const BACKEND_API_URL =
+  process.env.BACKEND_API_URL || 'http://localhost:8000';
 
 export const ROUTES = {
   HOME: '/',

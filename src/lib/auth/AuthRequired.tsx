@@ -77,6 +77,7 @@ export default async function AuthRequired({ children }: AuthRequiredProps) {
   if (!isValid || isExpired) {
     // 401 Unauthorizedページを表示
     // ユーザーは再ログインが必要
+    // TODO: リフレッシュを試して再度401の場合はログイン画面に遷移
     unauthorized();
   }
 

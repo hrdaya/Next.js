@@ -1,37 +1,8 @@
 import { signOut } from '@/lib/auth/utils';
 import type { ResponseBase } from '@/types/response';
+import type { TFunction } from 'i18next';
 import { forbidden, notFound, unauthorized } from 'next/navigation';
-
-/**
- * クライアントサイドでJWTトークンの存在を確認する
- * httpOnlyのcookieは直接アクセスできないため、APIエンドポイント経由でチェック
- * @returns JWTトークン（存在しない場合は空文字）
- */
-const getJwtToken = async (): Promise<string> => {
-  // サーバーサイドレンダリング時は空文字を返す
-  if (typeof window === 'undefined') {
-    return '';
-  }
-
-  try {
-    const response = await fetch('/api/auth/me', {
-      method: 'GET',
-      credentials: 'include', // httpOnlyのcookieを含める
-    });
-
-    if (response.ok) {
-      // レスポンスヘッダーからJWTを取得
-      const authHeader = response.headers.get('Authorization');
-      if (authHeader?.startsWith('Bearer ')) {
-        return authHeader.substring(7);
-      }
-    }
-    return '';
-  } catch (error) {
-    console.warn('Failed to get JWT token:', error);
-    return '';
-  }
-};
+import { useTranslation } from 'react-i18next';
 
 /**
  * API リクエスト用のカスタムReactフック
@@ -46,37 +17,143 @@ const getJwtToken = async (): Promise<string> => {
  *
  * @example
  * ```tsx
- * import type { User } from '@/types'; // システム管理用のUser型
+ * 'use client';
  *
- * const MyComponent = () => {
+ * import React, { useState, useEffect } from 'react';
+ * import { useApiRequest } from '@/hooks/useApiRequest';
+ * import type { User, CreateUserRequest } from '@/types';
+ *
+ * const UserManagementComponent = () => {
  *   const api = useApiRequest();
+ *   const [users, setUsers] = useState<User[]>([]);
+ *   const [loading, setLoading] = useState(false);
+ *   const [selectedFile, setSelectedFile] = useState<File | null>(null);
  *
- *   // データ取得（自動的にBearerトークンが付与される）
- *   const fetchUser = async (id: number) => {
- *     const response = await api.get<User>('/api/users', { id });
+ *   // ユーザー一覧取得
+ *   const fetchUsers = async () => {
+ *     setLoading(true);
+ *     const response = await api.get<User[]>('https://backend.example.com/api/users');
+ *     if (response.ok && response.data) {
+ *       setUsers(response.data);
+ *     } else {
+ *       console.error('ユーザー取得失敗:', response.message);
+ *     }
+ *     setLoading(false);
+ *   };
+ *
+ *   // 新規ユーザー作成
+ *   const createUser = async (userData: CreateUserRequest) => {
+ *     const response = await api.create<User>('https://backend.example.com/api/users', userData);
  *     if (response.ok) {
- *       console.log(response.data);
+ *       console.log('ユーザー作成成功:', response.data);
+ *       await fetchUsers(); // 一覧を再取得
+ *     } else {
+ *       console.error('ユーザー作成失敗:', response.message);
  *     }
  *   };
  *
- *   // データ作成（自動的にBearerトークンが付与される）
- *   const createUser = async (userData: CreateUserRequest) => {
- *     const response = await api.create<User>('/api/users', userData);
- *     return response;
+ *   // ユーザー情報更新
+ *   const updateUser = async (id: number, userData: Partial<User>) => {
+ *     const response = await api.update<User>(`https://backend.example.com/api/users/${id}`, userData);
+ *     if (response.ok) {
+ *       console.log('ユーザー更新成功:', response.data);
+ *       await fetchUsers(); // 一覧を再取得
+ *     }
  *   };
  *
- *   // ファイルアップロード（自動的にBearerトークンが付与される）
- *   const uploadFile = async (file: File) => {
- *     const formData = new FormData();
- *     formData.append('file', file);
- *     const response = await api.upload('/api/upload', formData);
- *     return response;
+ *   // ユーザー削除
+ *   const deleteUser = async (id: number) => {
+ *     const response = await api.del<void>('https://backend.example.com/api/users', { id });
+ *     if (response.ok) {
+ *       console.log('ユーザー削除成功');
+ *       await fetchUsers(); // 一覧を再取得
+ *     }
  *   };
+ *
+ *   // ファイルアップロード（プロフィール画像など）
+ *   const handleFileUpload = async () => {
+ *     if (!selectedFile) return;
+ *
+ *     const formData = new FormData();
+ *     formData.append('file', selectedFile);
+ *     formData.append('userId', '123');
+ *
+ *     const response = await api.upload('https://backend.example.com/api/upload/profile', formData);
+ *     if (response.ok) {
+ *       console.log('ファイルアップロード成功:', response.data);
+ *     }
+ *   };
+ *
+ *   // レポートダウンロード
+ *   const downloadReport = async () => {
+ *     const response = await api.download('https://backend.example.com/api/reports/users', {
+ *       format: 'xlsx',
+ *       dateRange: { start: '2024-01-01', end: '2024-12-31' }
+ *     });
+ *     if (response.ok) {
+ *       console.log('レポートダウンロード完了');
+ *     }
+ *   };
+ *
+ *   // コンポーネント初期化時にユーザー一覧を取得
+ *   useEffect(() => {
+ *     fetchUsers();
+ *   }, []);
+ *
+ *   return (
+ *     <div>
+ *       <h2>ユーザー管理</h2>
+ *
+ *       {loading && <p>読み込み中...</p>}
+ *
+ *       <ul>
+ *         {users.map(user => (
+ *           <li key={user.id}>
+ *             {user.name} ({user.email})
+ *             <button onClick={() => updateUser(user.id, { status: 'active' })}>
+ *               有効化
+ *             </button>
+ *             <button onClick={() => deleteUser(user.id)}>削除</button>
+ *           </li>
+ *         ))}
+ *       </ul>
+ *
+ *       <button onClick={() => createUser({ name: 'New User', email: 'new@example.com' })}>
+ *         新規ユーザー作成
+ *       </button>
+ *
+ *       <div>
+ *         <input
+ *           type="file"
+ *           onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+ *         />
+ *         <button onClick={handleFileUpload}>ファイルアップロード</button>
+ *       </div>
+ *
+ *       <button onClick={downloadReport}>レポートダウンロード</button>
+ *     </div>
+ *   );
  * };
  * ```
  *
  * @returns APIリクエスト用のメソッド群
  */
+
+/**
+ * Next.jsのプロキシAPIのベースURL
+ */
+const nextApiBaseUrl =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
+
+/**
+ * バックエンドのLaravelへのリクエストはNext.jsのプロキシAPI経由で行います
+ */
+const proxy = `${nextApiBaseUrl}/api/proxy`;
+
+/**
+ * Next.jsのプロキシAPIへのリクエスト（ブラウザ → Next.jsのプロキシAPI）は必ずPOSTで行います
+ */
+const proxyRequestMethod = 'POST';
 
 /**
  * プロキシAPIを使用してバックエンドにリクエストを送信
@@ -92,7 +169,7 @@ const getOptions = (
   headers?: Record<string, string>
 ): RequestInit => {
   return {
-    cache: 'no-store',
+    cache: 'no-store', // キャッシュを無効化
     credentials: 'include', // httpOnlyのcookieを含める
     headers: {
       'Content-Type': 'application/json',
@@ -104,70 +181,78 @@ const getOptions = (
 };
 
 /**
+ * ダウンロード処理
+ */
+const handleDownload = async (response: Response): Promise<void> => {
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get('Content-Disposition');
+  const contentType = response.headers.get('Content-Type');
+
+  let ext = '.txt';
+  switch (contentType) {
+    case 'text/csv':
+      ext = '.csv';
+      break;
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+      ext = '.xlsx';
+      break;
+    case 'application/pdf':
+      ext = '.pdf';
+      break;
+    default:
+      break;
+  }
+  const filename = contentDisposition?.split(/filename\*=UTF-8''/i)[1];
+
+  const anchor = document.createElement('a');
+  anchor.href = window.URL.createObjectURL(blob);
+  anchor.download = decodeURI(filename || `download${ext}`);
+  anchor.click();
+
+  window.URL.revokeObjectURL(anchor.href);
+};
+
+/**
+ * 認証・認可エラーを処理
+ */
+const handleAuthErrors = async (status: number): Promise<void> => {
+  if (status === 401) {
+    // TODO: リフレッシュを試して再度401の場合はログイン画面に遷移
+    unauthorized();
+  } else if (status === 403) {
+    forbidden();
+  } else if (status === 404) {
+    notFound();
+  }
+};
+
+/**
  * APIのレスポンスを処理する
  * @param response - fetchのレスポンス
  * @param defaultResponseData - デフォルトのレスポンスデータ
  * @param message - エラーメッセージ配列
  * @param isDownload - ファイルダウンロードかどうか
+ * @param t - 翻訳関数
  * @returns 処理されたレスポンスデータ
  */
 const handler = async <T>(
   response: Response,
   defaultResponseData: ResponseBase<T>,
   message: string[],
-  isDownload = false
+  isDownload: boolean,
+  t: TFunction
 ): Promise<ResponseBase<T>> => {
   const { ok, status, url, statusText } = response;
 
-  // httpOnlyのcookieを使用するため、JWTの処理は不要
-  // JWTはサーバーサイドで自動的に管理される
-
   // 正常レスポンスでファイルダウンロードの場合
   if (ok && isDownload) {
-    // ダウンロードが成功したら疑似的にリンクを作成して、それを疑似クリックすることでダウンロードさせる
-    const blob = await response.blob();
-    const contentDisposition = response.headers.get('Content-Disposition');
-    const contentType = response.headers.get('Content-Type');
-
-    let ext = '.txt';
-    switch (contentType) {
-      case 'text/csv':
-        ext = '.csv';
-        break;
-      case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-        ext = '.xlsx';
-        break;
-      case 'application/pdf':
-        ext = '.pdf';
-        break;
-      default:
-        break;
-    }
-    const filename = contentDisposition?.split(/filename\*=UTF-8''/i)[1];
-
-    const anchor = document.createElement('a');
-    anchor.href = window.URL.createObjectURL(blob);
-    anchor.download = decodeURI(filename || `download${ext}`);
-    anchor.click();
-
-    window.URL.revokeObjectURL(anchor.href);
-
-    return {
-      ...defaultResponseData,
-      ok,
-      status,
-      statusText,
-    };
+    await handleDownload(response);
+    return { ...defaultResponseData, ok, status, statusText };
   }
 
   // 204(データ削除の場合のレスポンス)はレスポンスボディが存在しないので別処理
   if (status === 204) {
-    return {
-      ...defaultResponseData,
-      ok: true,
-      status,
-      statusText,
-    };
+    return { ...defaultResponseData, ok: true, status, statusText };
   }
 
   // 正常レスポンスもしくはバリデーションエラーの場合
@@ -184,49 +269,24 @@ const handler = async <T>(
     }
   }
 
-  // 401: 認証エラー
-  if (status === 401) {
-    // ログアウト処理
-    await signOut();
-
-    // ログイン画面に遷移
-    unauthorized();
-  }
-
-  // 403: 認可エラー
-  if (status === 403) {
-    forbidden();
-  }
-
-  // 404: ページもしくはデータが存在しない
-  if (status === 404) {
-    notFound();
-  }
+  // 認証・認可エラーの処理
+  await handleAuthErrors(status);
 
   switch (status) {
-    case 405: // ルーティングの設定漏れ
-      message.push(`メソッドが許可されていません。[${url}]`);
+    case 405:
+      message.push(t('common.ApiErrors.methodNotAllowed', { url }));
       break;
-    case 409: // 楽観的ロック
-      message.push(
-        '他の人によって更新されています。再度データを読み込みなおしてください。'
-      );
+    case 409:
+      message.push(t('common.ApiErrors.optimisticLock'));
       break;
-    case 503: // メンテナンス画面
-      message.push('メンテナンス中です。');
+    case 503:
+      message.push(t('common.ApiErrors.maintenance'));
       break;
     default:
-      message.push(`${status} for ${url}`);
-      break;
+      message.push(t('common.ApiErrors.genericError', { status, url }));
   }
 
-  return {
-    ...defaultResponseData,
-    ok,
-    status,
-    statusText,
-    message,
-  };
+  return { ...defaultResponseData, ok, status, statusText, message };
 };
 
 /**
@@ -280,6 +340,9 @@ interface useApiRequestValue {
  * @returns APIリクエスト用のメソッド群
  */
 export const useApiRequest = (): useApiRequestValue => {
+  // 現在の言語を取得
+  const { i18n, t } = useTranslation();
+
   /**
    * fetchのラッパー関数
    * @param task - fetch Promise
@@ -306,7 +369,13 @@ export const useApiRequest = (): useApiRequestValue => {
     const message: string[] = [];
 
     try {
-      return handler<T>(await task, defaultResponseData, message, isDownload);
+      return handler<T>(
+        await task,
+        defaultResponseData,
+        message,
+        isDownload,
+        t
+      );
     } catch (error) {
       // エラーメッセージをセット
       message.push(errorMessage);
@@ -342,18 +411,19 @@ export const useApiRequest = (): useApiRequestValue => {
   ): Promise<ResponseBase<T>> => {
     return wrap<T>(
       fetch(
-        '/api/proxy',
+        proxy,
         getOptions(
-          'POST',
+          proxyRequestMethod,
           JSON.stringify({
             url,
             method: 'GET',
             body,
+            language: i18n.language, // 現在の言語を追加
           }),
           headers
         )
       ),
-      'データ取得に失敗しました。',
+      t('common.ApiErrors.getData'),
       false
     );
   };
@@ -372,18 +442,19 @@ export const useApiRequest = (): useApiRequestValue => {
   ): Promise<ResponseBase<T>> => {
     return wrap<T>(
       fetch(
-        '/api/proxy',
+        proxy,
         getOptions(
-          'POST',
+          proxyRequestMethod,
           JSON.stringify({
             url,
             method: 'POST',
             body,
+            language: i18n.language, // 現在の言語を追加
           }),
           headers
         )
       ),
-      'データ作成に失敗しました。',
+      t('common.ApiErrors.createData'),
       false
     );
   };
@@ -402,18 +473,19 @@ export const useApiRequest = (): useApiRequestValue => {
   ): Promise<ResponseBase<T>> => {
     return wrap<T>(
       fetch(
-        '/api/proxy',
+        proxy,
         getOptions(
-          'POST',
+          proxyRequestMethod,
           JSON.stringify({
             url,
             method: 'PUT',
             body,
+            language: i18n.language, // 現在の言語を追加
           }),
           headers
         )
       ),
-      'データ更新に失敗しました。',
+      t('common.ApiErrors.updateData'),
       false
     );
   };
@@ -432,24 +504,26 @@ export const useApiRequest = (): useApiRequestValue => {
   ): Promise<ResponseBase<T>> => {
     return wrap<T>(
       fetch(
-        '/api/proxy',
+        proxy,
         getOptions(
-          'POST',
+          proxyRequestMethod,
           JSON.stringify({
             url,
             method: 'DELETE',
             body,
+            language: i18n.language, // 現在の言語を追加
           }),
           headers
         )
       ),
-      'データ削除に失敗しました。',
+      t('common.ApiErrors.deleteData'),
       false
     );
   };
 
   /**
    * ファイルアップロード - プロキシ経由
+   * TODO: アップロードのときはapplication/jsonではなく、multipart/form-dataを使用する必要がある
    * 注意: httpOnlyのcookieを使用する場合、FormDataはプロキシAPIで特別な処理が必要
    * @param url - バックエンドAPIのURL
    * @param body - FormData（ファイルを含む）
@@ -474,7 +548,7 @@ export const useApiRequest = (): useApiRequestValue => {
         },
         body,
       }),
-      'ファイルアップロードに失敗しました。',
+      t('common.ApiErrors.uploadFile'),
       false
     );
   };
@@ -493,18 +567,19 @@ export const useApiRequest = (): useApiRequestValue => {
   ): Promise<ResponseBase<undefined>> => {
     return wrap<undefined>(
       fetch(
-        '/api/proxy',
+        proxy,
         getOptions(
-          'POST',
+          proxyRequestMethod,
           JSON.stringify({
             url,
             method: 'POST',
             body,
+            language: i18n.language, // 現在の言語を追加
           }),
           headers
         )
       ),
-      'ファイルダウンロードに失敗しました。',
+      t('common.ApiErrors.downloadFile'),
       true
     );
   };

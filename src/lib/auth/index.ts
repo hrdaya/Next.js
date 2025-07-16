@@ -31,13 +31,11 @@ export { default as AuthRequired } from './AuthRequired';
 /**
  * HTTPOnlyクッキーからのJWTトークン取得と管理
  * - getServerSession: サーバーサイドでのセッション取得
- * - getClientSession: クライアントサイドでのセッション確認
  * - setJwtCookie: セキュアなJWTクッキーの設定
  * - clearJwtCookie: JWTクッキーの削除
  */
 export {
   getServerSession,
-  getClientSession,
   setJwtCookie,
   clearJwtCookie,
 } from './session';
@@ -68,17 +66,13 @@ export {
 
 // ===== トークン検証システム =====
 /**
- * JWTトークンの検証を2つの方式で提供
+ * JWTトークンのローカル検証機能
  *
  * verifyTokenLocally:
  * - 高速なローカル検証（有効期限のみ）
  * - SSR/CSR両方で使用可能
  * - パフォーマンス重視の場面で使用
- *
- * verifyTokenWithAuthServer:
- * - 外部認証サーバーでの完全な検証
- * - 署名検証、取り消しリスト確認を含む
- * - セキュリティが重要な操作で使用
+ * - 外部サーバーへの問い合わせなしで即座に結果を返す
  *
  * TokenVerificationResult:
  * - 検証結果の標準的な型定義
@@ -86,7 +80,6 @@ export {
  */
 export {
   verifyTokenLocally,
-  verifyTokenWithAuthServer,
   type TokenVerificationResult,
 } from './tokenVerification';
 
@@ -100,28 +93,3 @@ export {
  * - エラー耐性のあるログアウト処理
  */
 export { signOut } from './utils';
-
-// ===== ミドルウェア機能 =====
-/**
- * Next.js ミドルウェアで使用する認証関連関数群
- *
- * パス判定:
- * - isPublicPath: 認証不要パスの判定
- * - isSigninPage: サインインページの判定
- * - isApiRoute: APIルートの判定
- *
- * 認証処理:
- * - handleSigninPageAuthentication: サインインページでの認証処理
- * - getAuthToken: リクエストからトークン取得
- * - createTokenExpiredResponse: 期限切れレスポンス生成
- * - handleAuthentication: 総合的な認証処理
- */
-export {
-  isPublicPath,
-  isSigninPage,
-  isApiRoute,
-  handleSigninPageAuthentication,
-  getAuthToken,
-  createTokenExpiredResponse,
-  handleAuthentication,
-} from './middleware';

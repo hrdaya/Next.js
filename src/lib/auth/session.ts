@@ -51,65 +51,6 @@ export async function getServerSession(): Promise<string | null> {
 }
 
 /**
- * クライアントサイドでJWTトークンの有効性を確認
- *
- * HTTPOnlyクッキーはクライアントサイドJavaScriptから直接アクセスできないため、
- * APIエンドポイント('/api/auth/me')を経由してトークンの有効性を確認します。
- *
- * 処理フロー:
- * 1. '/api/auth/me'エンドポイントにリクエスト
- * 2. サーバーサイドでクッキーからJWTを取得・検証
- * 3. 有効な場合はAuthorizationヘッダーでトークンを返却
- * 4. クライアントサイドでトークンを受け取り
- *
- * 使用場面:
- * - クライアントサイドでの認証状態確認
- * - SPAでのページ遷移時の認証チェック
- * - リアルタイム認証状態更新
- *
- * 注意事項:
- * - サーバーサイド環境では使用不可
- * - ネットワーク通信が発生するため遅延あり
- *
- * @returns Promise<string | null> 有効なJWTトークン、無効/不在の場合はnull
- */
-export async function getClientSession(): Promise<string | null> {
-  // サーバーサイド環境では使用不可
-  if (typeof window === 'undefined') {
-    console.warn('getClientSession called on server side');
-    return null;
-  }
-
-  try {
-    // 認証確認用APIエンドポイントにリクエスト
-    const response = await fetch('/api/auth/me', {
-      method: 'GET',
-      // HTTPOnlyクッキーを含めるためcredentials: 'include'必須
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // レスポンスが成功（200 OK）の場合
-    if (response.ok) {
-      // AuthorizationヘッダーからJWTトークンを抽出
-      const authHeader = response.headers.get('Authorization');
-      if (authHeader?.startsWith('Bearer ')) {
-        return authHeader.substring(7); // "Bearer "プレフィックスを除去
-      }
-    }
-
-    // 401 Unauthorizedやその他のエラーレスポンスの場合
-    return null;
-  } catch (error) {
-    // ネットワークエラーやAPI障害をハンドリング
-    console.warn('Failed to verify client session:', error);
-    return null;
-  }
-}
-
-/**
  * HTTPOnlyクッキーにJWTトークンを設定
  *
  * ログイン成功時にサーバーレスポンスでJWTトークンを

@@ -4,6 +4,38 @@
 
 ## ファイル構成
 
+### `serverApi.ts` - サーバーサイドAPI通信
+
+Server ComponentsでのSSR初期データ取得専用のAPI通信ユーティリティ。httpOnlyのcookieからJWTを自動取得し、国際化対応のX-Languageヘッダーを付与します。
+
+```typescript
+import { serverPost, fetchServerData } from '@/utils/serverApi';
+
+// Server Component内でのデータ取得
+export default async function UsersPage() {
+  const response = await fetchServerData<User[]>('/api/backend/users');
+  
+  if (!response.ok) {
+    return <div>エラーが発生しました: {response.message}</div>;
+  }
+  
+  return (
+    <div>
+      {response.data?.map(user => (
+        <div key={user.id}>{user.name}</div>
+      ))}
+    </div>
+  );
+}
+
+// より詳細な制御が必要な場合
+const response = await serverPost<UserResponse, CreateUserRequest>(
+  '/api/backend/users',
+  { name: 'John', email: 'john@example.com' },
+  { 'Custom-Header': 'value' }
+);
+```
+
 ### `classNames.ts` - CSS クラス名操作
 
 CSS クラス名の条件付き結合や操作を行う関数群。
@@ -130,6 +162,37 @@ downloadAsFile('Hello World', 'greeting.txt', 'text/plain');
 const content = await readFileAsText(file);
 ```
 
+### `clone.ts` - オブジェクトのディープコピー
+
+オブジェクトや配列の深いコピーを作成する関数群。
+
+```typescript
+import { deepClone, shallowClone } from '@/utils/clone';
+
+// ディープコピー（ネストしたオブジェクトも完全にコピー）
+const original = { user: { name: 'John', settings: { theme: 'dark' } } };
+const copied = deepClone(original);
+copied.user.name = 'Jane'; // originalは変更されない
+
+// シャローコピー（第一階層のみコピー）
+const shallow = shallowClone(original);
+```
+
+### `padLeft.ts` - 文字列の左パディング
+
+文字列の左側に指定文字を埋めて指定長にする関数。
+
+```typescript
+import { padLeft } from '@/utils/padLeft';
+
+// 数値を0埋めで指定桁数にする
+const id = padLeft('123', 6, '0'); // "000123"
+const time = padLeft('5', 2, '0'); // "05"
+
+// スペース埋め
+const aligned = padLeft('text', 10, ' '); // "      text"
+```
+
 ## 使用方法
 
 ### 個別インポート（推奨）
@@ -139,6 +202,9 @@ const content = await readFileAsText(file);
 import { cn } from '@/utils/classNames';
 import { debounce } from '@/utils/timing';
 import { isValidEmail } from '@/utils/validation';
+import { serverPost } from '@/utils/serverApi';
+import { deepClone } from '@/utils/clone';
+import { padLeft } from '@/utils/padLeft';
 ```
 
 ### まとめてインポート
@@ -150,13 +216,14 @@ import * as utils from '@/utils';
 // または特定のモジュールをまとめてインポート
 import * as stringUtils from '@/utils/string';
 import * as dateUtils from '@/utils/dateFormat';
+import * as serverUtils from '@/utils/serverApi';
 ```
 
 ### index.ts 経由でのインポート
 
 ```typescript
 // index.ts 経由（後方互換性のため）
-import { cn, debounce, isValidEmail } from '@/utils';
+import { cn, debounce, isValidEmail, deepClone } from '@/utils';
 ```
 
 ## 開発ガイドライン
@@ -166,6 +233,44 @@ import { cn, debounce, isValidEmail } from '@/utils';
 3. **JSDoc**: 関数の目的、パラメータ、戻り値、使用例を明記
 4. **テスト**: 重要なユーティリティ関数には単体テストを作成
 5. **Tree-shaking**: 個別エクスポートを使用してバンドルサイズを最適化
+6. **環境別使い分け**:
+   - Server Components: `serverApi.ts` を使用（SSR初期データ取得）
+   - Client Components: `useApiRequest` フックを使用（ユーザー操作によるAPI呼び出し）
+
+## API通信の使い分け
+
+### Server Components（サーバーサイド）
+
+```typescript
+// src/app/users/page.tsx
+import { fetchServerData } from '@/utils/serverApi';
+
+export default async function UsersPage() {
+  // SSR時の初期データ取得
+  const users = await fetchServerData<User[]>('/api/backend/users');
+  return <UserList users={users.data} />;
+}
+```
+
+### Client Components（クライアントサイド）
+
+```typescript
+// src/components/UserForm.tsx
+'use client';
+import { useApiRequest } from '@/hooks/useApiRequest';
+
+export function UserForm() {
+  const { create } = useApiRequest();
+  
+  const handleSubmit = async (userData: CreateUserRequest) => {
+    // ユーザー操作によるAPI呼び出し
+    const response = await create<User>('/api/backend/users', userData);
+    if (response.ok) {
+      // 成功処理
+    }
+  };
+}
+```
 
 ## 既存コードからの移行
 
@@ -176,3 +281,10 @@ import { cn, debounce, isValidEmail } from '@/utils';
 3. リンターエラーを修正
 4. 既存のインポートが正常に動作することを確認
 5. 必要に応じてテストケースを作成
+
+### 新しいユーティリティの活用
+
+- **サーバーサイドAPI通信**: 従来の `fetch` 直接呼び出しから `serverApi.ts` の使用に移行
+- **国際化対応**: エラーメッセージやAPI通信で自動的に言語ヘッダーが付与される
+- **型安全性**: すべてのAPI通信で `ResponseBase<T>` 型による統一されたレスポンス処理
+- **認証**: httpOnlyクッキーによる自動JWT管理で、セキュリティとUXを両立

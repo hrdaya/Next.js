@@ -7,9 +7,8 @@ src/lib/auth/
 ├── AuthRequired.tsx      # 認証が必要なページ用のラッパーコンポーネント
 ├── index.ts             # ライブラリのエントリーポイント
 ├── jwt.ts               # JWT関連のユーティリティ関数（ローカル検証）
-├── middleware.ts        # 認証ミドルウェア処理
 ├── session.ts           # JWT Session管理 (httpOnly Cookie)
-├── tokenVerification.ts # トークン検証処理（ローカル・外部）
+├── tokenVerification.ts # トークン検証処理（ローカル検証）
 ├── utils.ts             # 認証ユーティリティ関数
 └── README.md            # このドキュメント
 ```
@@ -22,7 +21,8 @@ src/lib/auth/
 - **ローカル検証**: 外部サーバーへの問い合わせなしでJWT有効期限をチェック
 - **サーバーサイド認証**: Server Components での初期認証チェック
 - **Route Groups**: `(authenticated)` フォルダによる自動保護
-- **ミドルウェア統合**: Next.js middleware による認証状態管理
+- **AuthRequired統合**: コンポーネントベースの認証管理
+- **高速処理**: ローカル検証による即座のレスポンス
 
 ## 📋 各ファイルの役割
 
@@ -54,28 +54,17 @@ src/lib/auth/
 
 - **httpOnly Cookie**を使用したJWT Session管理
 - `getServerSession()` - サーバーサイドでのJWT取得
-- `getClientSession()` - クライアントサイドでのJWT存在確認
 - `setJwtCookie()` - セキュアなJWTクッキーの設定
 - `clearJwtCookie()` - JWTクッキーの削除
-- Server Components、API Routes、ミドルウェアで使用
+- Server Components、API Routes で使用
 - XSS攻撃からJWTトークンを保護する安全な実装
 
 ### `tokenVerification.ts`
 
-- **ローカル検証**と**外部サーバー検証**の両方をサポート
+- **ローカル検証**をサポート
 - `verifyTokenLocally()` - **推奨**: ローカルでのJWT有効期限チェック
-- `verifyTokenWithAuthServer()` - 外部認証サーバーでのトークン検証
 - `TokenVerificationResult` - 検証結果の型定義
-- パフォーマンス重視のローカル検証を優先使用
-
-### `middleware.ts`
-
-- Next.js ミドルウェアでの認証処理
-- `isPublicPath()` - 公開パス判定（/signin, /unauthorized等）
-- `isApiRoute()` - APIルート判定
-- `handleAuthentication()` - メイン認証処理
-- `handleSigninPageAuthentication()` - サインインページ専用処理
-- 認証状態に応じた自動リダイレクト
+- パフォーマンス重視のローカル検証で高速処理
 
 ### `utils.ts`
 
@@ -260,50 +249,26 @@ export async function getTokenDetails(token: string) {
 }
 ```
 
-### 外部サーバー検証（オプション）
-
-```tsx
-import { verifyTokenWithAuthServer } from '@/lib/auth';
-
-// 外部認証サーバーでの詳細検証（必要な場合のみ）
-export async function validateWithRemoteServer(token: string) {
-  const result = await verifyTokenWithAuthServer(token);
-
-  if (!result.isValid) {
-    console.log('無効なトークンです');
-    return null;
-  }
-
-  if (result.isExpired) {
-    console.log('トークンが期限切れです');
-    return null;
-  }
-
-  return result.user; // 外部サーバーから取得したユーザー情報
-}
-```
-
 ### ミドルウェア認証処理
 
 ```tsx
-// src/middleware.ts
-import { handleAuthentication } from '@/lib/auth/middleware';
-import type { NextRequest } from 'next/server';
+// 認証システムは Route Groups + AuthRequired パターンを採用
+// ミドルウェアは使用していません
+
+// src/app/(authenticated)/layout.tsx
+import AuthRequired from '@/lib/auth/AuthRequired';
 
 /**
- * Next.jsミドルウェアのメインエントリーポイント。
- * リクエスト毎に実行され、認証状態をチェックします。
- * @param request - 受信したNextRequestオブジェクト
- * @returns NextResponseオブジェクト
+ * 認証が必要なページのレイアウト
+ * AuthRequiredコンポーネントで認証チェックを実行
  */
-export async function middleware(request: NextRequest) {
-  // 認証ミドルウェアを実行
-  return await handleAuthentication(request);
+export default function AuthenticatedLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <AuthRequired>{children}</AuthRequired>;
 }
-
-export const config = {
-  matcher: ['/((?!_next|static|favicon.ico).*)'],
-};
 ```
 
 ### サインアウト処理
@@ -346,12 +311,6 @@ src/app/(authenticated)/
 └── loading.tsx           # ローディングページ
 ```
 
-### ミドルウェア設定
-
-```text
-src/middleware.ts         # プロジェクトルートのミドルウェア
-```
-
 ### エラーページ
 
 ```text
@@ -377,14 +336,14 @@ src/app/
 - **可用性向上**: 外部サービスの障害の影響を受けない
 - **コスト削減**: APIコール数の削減
 - **レスポンス改善**: ネットワーク遅延の排除
+- **シンプルな設計**: 複雑な外部依存を排除した軽量アーキテクチャ
 
 ### 認証チェックポイント
 
-1. **ミドルウェアレベル**: 全リクエストの入り口で認証チェック
-2. **AuthRequiredコンポーネント**: ページレベルでの自動認証チェック
-3. **Route Groupsレベル**: `(authenticated)` フォルダ内の自動保護
-4. **API Routeレベル**: 個別APIでの認証チェック
-5. **Server Componentレベル**: コンポーネント内での認証状態確認
+1. **AuthRequiredコンポーネント**: ページレベルでの自動認証チェック
+2. **Route Groupsレベル**: `(authenticated)` フォルダ内の自動保護
+3. **API Routeレベル**: 個別APIでの認証チェック
+4. **Server Componentレベル**: コンポーネント内での認証状態確認
 
 ## 🔧 開発・運用のヒント
 
@@ -396,8 +355,8 @@ import { isJWTValid, verifyTokenLocally } from '@/lib/auth';
 
 const isAuthenticated = isJWTValid(token);
 
-// ❌ 非推奨: 毎回外部サーバーに問い合わせ
-const result = await verifyTokenWithAuthServer(token);
+// ✅ ローカル検証のみ利用可能
+const result = verifyTokenLocally(token);
 ```
 
 ### デバッグ方法
@@ -413,7 +372,7 @@ const result = await verifyTokenWithAuthServer(token);
 # コンソールで isJWTValid(token) を実行して有効性確認
 # コンソールで getJWTExpirationTime(token) で残り時間を確認
 
-# ミドルウェアログの確認
+# AuthRequired コンポーネントのログ確認
 # Next.js の開発サーバーコンソールをチェック
 
 # トークン検証の確認
@@ -431,6 +390,6 @@ COOKIE_DOMAIN=localhost  # 本番では実際のドメイン
 
 ### トラブルシューティング
 
-- **無限リダイレクト**: `/signin` → `/unauthorized` のループが発生する場合は `handleSigninPageAuthentication` の実装を確認
 - **認証状態が更新されない**: httpOnly Cookie が正しくクリアされているかブラウザの開発者ツールで確認
-- **ミドルウェアが動作しない**: `middleware.ts` のファイル配置と `config.matcher` の設定を確認
+- **AuthRequired でリダイレクトループ**: `/signin` ページの実装とRoute Groupsの設定を確認
+- **サーバーサイドエラー**: `getServerSession()` 呼び出し時のクッキーアクセス権限を確認

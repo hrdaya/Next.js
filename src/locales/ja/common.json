@@ -6,5 +6,19 @@
     "loading": "読み込み中...",
     "logout": "ログアウト",
     "defaultUser": "ユーザー"
+  },
+  "ApiErrors": {
+    "getData": "データ取得に失敗しました。",
+    "createData": "データ作成に失敗しました。",
+    "updateData": "データ更新に失敗しました。",
+    "deleteData": "データ削除に失敗しました。",
+    "uploadFile": "ファイルアップロードに失敗しました。",
+    "downloadFile": "ファイルダウンロードに失敗しました。",
+    "methodNotAllowed": "メソッドが許可されていません。[{{url}}]",
+    "optimisticLock": "他の人によって更新されています。再度データを読み込みなおしてください。",
+    "maintenance": "メンテナンス中です。",
+    "networkError": "ネットワーク通信に失敗しました。",
+    "internalServerError": "サーバー内部エラーが発生しました。",
+    "genericError": "{{status}} for {{url}}"
   }
 }

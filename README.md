@@ -8,26 +8,12 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 
 ## TODO
 
-- [ ] 国際化対応のサーバーサイドコンポーネント、クライアントサイドコンポーネントの両対応の確認
-  - 書き方統一したい
-- [ ] サーバーサイドコンポーネントのAPI用のロジックの確認
-  - 共通処理が正しいかを確認する
-- [ ] クライアントサイドコンポーネント用のAPIのproxyが微妙なので見直し
-  - ヘッダはBearerのみ付け外しするようにする
-  - json以外にblobの場合もあるのでどうするか確認する
-  - ストリーム出力の場合はどうなる？
-- [ ] 認証のロジックを要確認
-  - Route Groupをよく理解していない
-  - どこで `(authenticated)` を判定している？Next.jsが自動にやっている？
-- [ ] jwtはセッションで保持したいがセッションをRedisで保持するやり方がわからない
-  - ブラウザにjwtを保持させたくない
-- [ ] ページの配置やサーバーサイドコンポーネント、クライアントサイドコンポーネントの理解を深める
-  - page.tsxはコンポーネントの呼び出しだけで実装は`src/features`に集約するのが良さそう
 - [ ] サーバーサイドコンポーネントとapiのproxyでトークンのリフレッシュ処理を入れる
   - バックエンドサーバーからステータスコード401が返却された場合やローカルでjwt検証した際に有効期限切れになっている場合はトークンリフレッシュのエンドポイントを叩き、正常レスポンスがかえってきた場合には再度リクエストを実行する
-- [ ] ログインAPIの検証
-- [ ] ログアウトAPIの検証
+- [ ] ログインAPIの検証（APIを無くしてプロキシーを直接叩く）
+- [ ] ログアウトAPIの検証（lib/auth/utiles.tsに処理をまとめてプロキシーを直接叩く）
 - [ ] リアルタイムバリデーション
+- [ ] メタデータの国際化
 
 ## 📋 目次
 
@@ -58,19 +44,24 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 - **JWT ベースの認証** - httpOnly Cookie による安全なトークン管理
 - **Route Groups** - `(authenticated)` フォルダによる認証必須ページの自動保護
 - **サーバーサイド認証** - Server Components での初期認証チェック
-- **ミドルウェア** - Next.js middleware による認証状態の管理
+- **Route Groups** - Next.js App Router による認証ページの保護
 
 ### API通信
 
 - **serverApi** - Server Components 専用のAPI通信ユーティリティ
   - JWTトークンの自動付与（httpOnly Cookieから取得）
+  - X-Language ヘッダーの自動付与（Accept-Language から検出）
   - POST専用設計（SSRでのデータ取得に最適化）
   - エラーハンドリングの統一（401/403/404の自動ハンドリング）
+  - 国際化対応エラーメッセージ
   - TypeScript型安全性
   - Next.js `cache: 'no-store'` でリアルタイムデータ取得
 - **useApiRequest** - Client Components 用のAPI通信フック
-  - 共通エラーハンドリング
+  - プロキシAPI（`/api/proxy`）経由でのバックエンド通信
+  - 共通エラーハンドリング（国際化対応）
+  - X-Language ヘッダーの自動付与（現在の言語設定から）
   - HTTP メソッド別の専用関数（get/create/update/del/upload/download）
+  - ファイルアップロード・ダウンロード対応
   - TypeScript型安全性
 
 ### ユーティリティ関数
@@ -83,8 +74,18 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 
 ### 国際化
 
-- **i18next** - 多言語対応
-- **LanguageSwitcher** - 言語切り替えコンポーネント
+- **サーバーサイドi18n** - Accept-Language ヘッダーベースの自動言語検出
+  - `getServerI18n()` によるサーバーサイド翻訳
+  - Server Components での多言語対応
+  - SEO対応の初期言語設定
+- **クライアントサイドi18n** - react-i18next による動的言語切り替え
+  - `LanguageSwitcher` - 言語切り替えコンポーネント
+  - リアルタイム言語切り替え
+  - ローカルストレージによる言語設定の永続化
+- **API通信での言語連携**
+  - X-Language ヘッダーによるバックエンドへの言語情報送信
+  - サーバーサイド・クライアントサイド共通の言語ヘッダー対応
+  - エラーメッセージの多言語対応（日本語・英語）
 - **型安全な翻訳** - TypeScript サポート
 
 ### テスト
@@ -220,12 +221,15 @@ export default async function FilteredUsersPage() {
 - GETリクエストでも、必ず第2引数にbodyオブジェクトを渡してください
 - 空のデータの場合でも `{}` を渡す必要があります
 
-**エラーハンドリング：**
+**国際化とエラーハンドリング：**
 
+- Accept-Language ヘッダーから自動的に言語を検出
+- X-Language ヘッダーをバックエンドに自動送信
+- エラーメッセージは検出された言語で表示
 - 401エラー: `unauthorized()` を自動呼び出し（認証ページにリダイレクト）
 - 403エラー: `forbidden()` を自動呼び出し（403ページにリダイレクト）
 - 404エラー: `notFound()` を自動呼び出し（404ページにリダイレクト）
-- その他エラー: `response.message` 配列にエラー内容が格納
+- その他エラー: `response.message` 配列にローカライズされたエラー内容が格納
 
 **SSRデータ取得の特徴：**
 
@@ -261,17 +265,20 @@ export function UserForm() {
   const api = useApiRequest();
   const [users, setUsers] = useState<User[]>([]);
 
-  // データ取得
+  // データ取得（プロキシAPI経由、X-Languageヘッダー自動付与）
   const fetchUsers = async () => {
-    const result = await api.get<User[]>('/api/users');
+    const result = await api.get<User[]>('/api/backend/users');
     if (result.ok && result.data) {
       setUsers(result.data);
+    } else {
+      // エラーメッセージは現在の言語設定でローカライズ済み
+      console.error('取得エラー:', result.message);
     }
   };
 
   // データ作成
   const handleSubmit = async (formData: FormData) => {
-    const result = await api.create<User>('/api/users', {
+    const result = await api.create<User>('/api/backend/users', {
       name: formData.get('name'),
       email: formData.get('email'),
     });
@@ -280,24 +287,26 @@ export function UserForm() {
       console.log('ユーザーが作成されました:', result.data);
       fetchUsers(); // リスト更新
     } else {
-      console.error('エラー:', result.message);
+      // 多言語対応エラーメッセージ
+      console.error('作成エラー:', result.message);
     }
   };
 
-  // データ更新
-  const updateUser = async (id: string, userData: Partial<User>) => {
-    const result = await api.update<User>(`/api/users/${id}`, userData);
+  // ファイルアップロード
+  const handleFileUpload = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const result = await api.upload<{url: string}>('/api/backend/upload', formData);
     if (result.ok) {
-      fetchUsers(); // リスト更新
+      console.log('アップロード完了:', result.data);
     }
   };
 
-  // データ削除
-  const deleteUser = async (id: string) => {
-    const result = await api.del(`/api/users/${id}`, {});
-    if (result.ok) {
-      fetchUsers(); // リスト更新
-    }
+  // ファイルダウンロード
+  const handleDownload = async () => {
+    const result = await api.download('/api/backend/users/export', { format: 'csv' });
+    // ダウンロードは自動的に実行される
   };
 
   return (
@@ -310,10 +319,14 @@ export function UserForm() {
 
       <div>
         <button onClick={fetchUsers}>ユーザー一覧を取得</button>
+        <button onClick={handleDownload}>CSV出力</button>
+        
         {users.map(user => (
           <div key={user.id}>
             {user.name} ({user.email})
-            <button onClick={() => deleteUser(user.id)}>削除</button>
+            <button onClick={() => api.del(`/api/backend/users/${user.id}`, {})}>
+              削除
+            </button>
           </div>
         ))}
       </div>
@@ -321,6 +334,26 @@ export function UserForm() {
   );
 }
 ```
+
+#### Client Components での重要な特徴
+
+**プロキシAPI経由の通信：**
+
+- すべての通信は `/api/proxy` 経由でバックエンドにアクセス
+- JWTトークンはhttpOnlyクッキーで安全に管理
+- X-Language ヘッダーが現在の言語設定に基づいて自動付与
+
+**国際化対応：**
+
+- エラーメッセージは `useTranslation` フックによる現在の言語で表示
+- API通信時に選択中の言語がバックエンドに自動送信
+- 言語切り替え時にエラーメッセージも即座に切り替わる
+
+**ファイル処理：**
+
+- `upload`: FormData による multipart/form-data アップロード
+- `download`: 自動ダウンロード処理（ブラウザのダウンロード機能を使用）
+- CSV、Excel、PDF など様々なファイル形式に対応
 
 ### 認証が必要なページの作成
 
@@ -342,6 +375,19 @@ export default function DashboardPage() {
 ### ユーティリティ関数の使用
 
 ```typescript
+// サーバーサイドAPI通信
+import { fetchServerData, serverPost } from '@/utils/serverApi';
+
+// Server Component内でのデータ取得（国際化・JWT・X-Language対応）
+const response = await fetchServerData<User[]>('/api/backend/users', {});
+
+// より詳細な制御
+const result = await serverPost<CreateResponse, CreateUserRequest>(
+  '/api/backend/users',
+  { name: 'John', email: 'john@example.com' },
+  { 'Custom-Header': 'value' }
+);
+
 // ファイル操作
 import { readFileAsText, isImageFile, formatFileSize } from '@/utils/file';
 
@@ -354,6 +400,12 @@ import { isEmpty, isValidEmail, isValidUrl } from '@/utils/validation';
 // 日付フォーマット
 import { formatDate, formatLocalDatetime } from '@/utils/dateFormat';
 
+// オブジェクトのディープコピー
+import { deepClone } from '@/utils/clone';
+
+// 文字列の左パディング
+import { padLeft } from '@/utils/padLeft';
+
 // クラス名管理
 import { cn } from '@/utils/classNames';
 
@@ -362,6 +414,16 @@ const buttonClass = cn(
   isActive && 'bg-blue-500 text-white',
   isDisabled && 'opacity-50 cursor-not-allowed'
 );
+
+// 国際化（Server Components）
+import { getServerTranslation, getServerI18n } from '@/lib/i18n/server';
+
+// Server Component内での翻訳
+const welcomeMessage = await getServerTranslation('common:welcome', { name: 'John' });
+
+// より詳細な制御
+const { i18n, language } = await getServerI18n();
+const title = i18n.t('common:page.title');
 ```
 
 ## セットアップ
