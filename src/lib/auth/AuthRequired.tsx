@@ -18,8 +18,8 @@
  */
 
 import { unauthorized } from 'next/navigation';
-import { getServerSession } from './session';
-import { verifyTokenLocally } from './tokenVerification';
+import { verifyTokenLocally } from './jwt';
+import { getJwtCookie, tryRefreshJwt } from './jwtCookie';
 
 /**
  * AuthRequiredコンポーネントのプロパティ
@@ -60,7 +60,7 @@ interface AuthRequiredProps {
 export default async function AuthRequired({ children }: AuthRequiredProps) {
   // サーバーサイドでHTTPオンリーCookieからJWTトークンを取得
   // この処理はサーバーサイドでのみ実行され、クライアントからは直接アクセス不可
-  const jwt = await getServerSession();
+  const jwt = await getJwtCookie();
 
   // JWTトークンが存在しない場合（未ログイン状態）
   if (!jwt) {
@@ -75,9 +75,26 @@ export default async function AuthRequired({ children }: AuthRequiredProps) {
 
   // JWTが無効または期限切れの場合
   if (!isValid || isExpired) {
-    // 401 Unauthorizedページを表示
-    // ユーザーは再ログインが必要
-    // TODO: リフレッシュを試して再度401の場合はログイン画面に遷移
+    // JWTリフレッシュを試行
+    try {
+      const refreshResult = await tryRefreshJwt({
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        },
+      });
+
+      if (refreshResult.success && refreshResult.jwt) {
+        // リフレッシュ成功：認証成功として処理を続行
+        // 注意: リフレッシュしたJWTは既にクッキーに保存済みで、有効性も保証済み
+        return <>{children}</>;
+      }
+    } catch (error) {
+      console.error('JWT refresh failed in AuthRequired:', error);
+    }
+
+    // リフレッシュが失敗した場合、または新しいJWTも無効な場合
+    // 401 Unauthorizedページを表示（ユーザーは再ログインが必要）
     unauthorized();
   }
 

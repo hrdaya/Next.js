@@ -1,11 +1,12 @@
-import { DashboardPage } from '@/features/dashboard/components/DashboardPage';
-import { getServerSession } from '@/lib/auth/session';
-import { verifyTokenLocally } from '@/lib/auth/tokenVerification';
+import { LogoutButton } from '@/features/auth/components';
+import { DashboardPage } from '@/features/dashboard/components';
+import { verifyTokenLocally } from '@/lib/auth/jwt';
+import { getJwtCookie } from '@/lib/auth/jwtCookie';
 import { getServerTranslation } from '@/lib/i18n/server';
 
 export default async function Page() {
   // サーバーサイドでユーザー情報を取得
-  const jwt = await getServerSession();
+  const jwt = await getJwtCookie();
   let user = null;
 
   if (jwt) {
@@ -27,14 +28,7 @@ export default async function Page() {
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold">{welcomeText}</h1>
-        <form action="/api/auth/signout" method="POST">
-          <button
-            type="submit"
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            {logoutText}
-          </button>
-        </form>
+        <LogoutButton logoutText={logoutText} />
       </div>
       <DashboardPage />
     </div>

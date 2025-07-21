@@ -13,9 +13,9 @@ interface SignInFormData {
 }
 
 /**
- * SignInコンポーネントのProps型定義
+ * SignInFormコンポーネントのProps型定義
  */
-interface SignInProps {
+interface SignInFormProps {
   /** フォーム送信時のコールバック関数 */
   onSubmit?: (data: SignInFormData) => Promise<void>;
   /** ローディング状態 */
@@ -39,7 +39,11 @@ interface SignInProps {
  * - アクセシビリティ対応
  * - エンターキー送信の無効化
  */
-export function SignIn({ onSubmit, isLoading = false, error }: SignInProps) {
+export function SignInForm({
+  onSubmit,
+  isLoading = false,
+  error,
+}: SignInFormProps) {
   // 多言語化フック
   const { t } = useTranslation('auth');
 

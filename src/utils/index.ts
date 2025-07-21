@@ -39,5 +39,5 @@ export * from './validation';
 // ファイルとデータ処理関連のユーティリティ
 export * from './file';
 
-// レガシーエクスポート（特定のモジュールからの直接インポートを検討してください）
-export * from './serverApi';
+// サーバーコンポーネント用API通信（プロキシ経由）
+export * from './serverApiProxy';

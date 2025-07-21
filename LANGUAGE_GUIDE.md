@@ -38,7 +38,7 @@ src/locales/ko/
 
 ### 3. i18n設定を更新
 
-`src/lib/i18n/i18n.ts` ファイルの `resources` オブジェクトに新しい言語のリソースを追加します：
+`src/lib/i18n/resources.ts` ファイルの `commonResources` オブジェクトに新しい言語のリソースを追加します：
 
 ```typescript
 // 翻訳ファイルのインポート

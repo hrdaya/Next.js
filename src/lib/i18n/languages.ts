@@ -25,7 +25,7 @@ export interface LanguageConfig {
  * 1. ここに言語設定を追加
  * 2. src/locales/{languageCode}/ フォルダを作成
  * 3. 翻訳ファイル（common.json, auth.json等）を追加
- * 4. src/lib/i18n/i18n.ts のresourcesに追加
+ * 4. src/lib/i18n/client.ts と src/lib/i18n/server.ts で共通リソースを使用（自動適用）
  */
 export const languagesConfig: LanguageConfig[] = [
   {
@@ -108,3 +108,57 @@ export const defaultLanguage = languagesConfig[0]; // English
  * サポートされている言語コードの配列
  */
 export const supportedLanguages = languagesConfig.map((lang) => lang.code);
+
+/**
+ * サポートされている名前空間の定義
+ * サーバーサイド・クライアントサイド共通
+ */
+export const supportedNamespaces = [
+  'common',
+  'dashboard',
+  'errors',
+  'auth',
+] as const;
+
+/**
+ * 名前空間の型定義
+ */
+export type SupportedNamespace = (typeof supportedNamespaces)[number];
+
+/**
+ * 翻訳リソース構造の型定義
+ * サーバーサイド・クライアントサイド共通で使用
+ */
+export type TranslationResources = {
+  [K in (typeof supportedLanguages)[number]]: {
+    [N in SupportedNamespace]: Record<string, string | Record<string, string>>;
+  };
+};
+
+/**
+ * 言語コードの有効性チェック
+ * @param languageCode - チェックする言語コード
+ * @returns 有効な言語コードかどうか
+ */
+export function isValidLanguageCode(
+  languageCode: string
+): languageCode is (typeof supportedLanguages)[number] {
+  return supportedLanguages.includes(
+    languageCode as (typeof supportedLanguages)[number]
+  );
+}
+
+/**
+ * 安全な言語コード取得
+ * 無効な言語コードの場合はデフォルト言語を返す
+ * @param languageCode - チェックする言語コード
+ * @returns 有効な言語コード
+ */
+export function getSafeLanguageCode(
+  languageCode?: string
+): (typeof supportedLanguages)[number] {
+  if (languageCode && isValidLanguageCode(languageCode)) {
+    return languageCode;
+  }
+  return defaultLanguage.code as (typeof supportedLanguages)[number];
+}

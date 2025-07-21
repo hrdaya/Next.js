@@ -8,13 +8,8 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 
 ## TODO
 
-- [ ] サーバーサイドコンポーネントとapiのproxyでトークンのリフレッシュ処理を入れる
-  - バックエンドサーバーからステータスコード401が返却された場合やローカルでjwt検証した際に有効期限切れになっている場合はトークンリフレッシュのエンドポイントを叩き、正常レスポンスがかえってきた場合には再度リクエストを実行する
-- [ ] ログインAPIの検証（APIを無くしてプロキシーを直接叩く）
-- [ ] ログアウトAPIの検証（lib/auth/utiles.tsに処理をまとめてプロキシーを直接叩く）
 - [ ] リアルタイムバリデーション
 - [ ] メタデータの国際化
-- [ ] ファイルアップロードの処理の見直し
 - [ ] 言語切り替えによるフォント切り替え（sans-selfのみの指定で良いか確認）
 
 ## 📋 目次
@@ -44,16 +39,19 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 ### 認証システム
 
 - **JWT ベースの認証** - httpOnly Cookie による安全なトークン管理
+- **自動トークンリフレッシュ** - 401エラー検知時の自動JWT更新機能
 - **Route Groups** - `(authenticated)` フォルダによる認証必須ページの自動保護
 - **サーバーサイド認証** - Server Components での初期認証チェック
-- **Route Groups** - Next.js App Router による認証ページの保護
+- **ローカル検証** - 外部サーバーへの問い合わせなしでの高速JWT検証
 
 ### API通信
 
-- **serverApi** - Server Components 専用のAPI通信ユーティリティ
-  - JWTトークンの自動付与（httpOnly Cookieから取得）
+- **serverApiProxy** - Server Components 専用のプロキシ経由API通信ユーティリティ
+  - プロキシルート（`/api/proxy`）経由でのバックエンド通信
+  - JWTトークンの自動管理（httpOnlyクッキー⇔Bearerトークン変換）
   - X-Language ヘッダーの自動付与（Accept-Language から検出）
-  - POST専用設計（SSRでのデータ取得に最適化）
+  - GET/POST/PUT/DELETE全メソッド対応
+  - 自動トークンリフレッシュ機能
   - エラーハンドリングの統一（401/403/404の自動ハンドリング）
   - 国際化対応エラーメッセージ
   - TypeScript型安全性
@@ -128,7 +126,7 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 
 ```typescript
 // src/app/(authenticated)/users/page.tsx
-import { fetchServerData } from '@/utils/serverApi';
+import { getServerData } from '@/utils/serverApiProxy';
 
 interface User {
   id: string;
@@ -137,8 +135,8 @@ interface User {
 }
 
 export default async function UsersPage() {
-  // fetchServerDataはPOST専用で、第2引数にbodyが必要（空オブジェクトでも可）
-  const response = await fetchServerData<User[]>('/api/users', {});
+  // getServerDataでGETリクエスト（第2引数はオプション）
+  const response = await getServerData<User[]>('/api/users');
 
   if (!response.ok) {
     return <div>エラーが発生しました</div>;
@@ -159,7 +157,7 @@ export default async function UsersPage() {
 
 ```typescript
 // src/app/(authenticated)/users/filtered/page.tsx
-import { fetchServerData } from '@/utils/serverApi';
+import { postServerData } from '@/utils/serverApiProxy';
 
 interface UserFilter {
   status?: 'active' | 'inactive';
@@ -176,14 +174,14 @@ interface User {
 }
 
 export default async function FilteredUsersPage() {
-  // POSTボディでフィルタ条件を送信
+  // POSTでフィルタ条件を送信
   const filter: UserFilter = {
     status: 'active',
     department: 'engineering',
     limit: 50
   };
 
-  const response = await fetchServerData<User[]>('/api/users/search', filter);
+  const response = await postServerData<User[]>('/api/users/search', filter);
 
   if (!response.ok) {
     return (
@@ -217,11 +215,11 @@ export default async function FilteredUsersPage() {
 
 #### Server Components での重要な注意点
 
-**POST専用設計について：**
+**プロキシ経由設計について：**
 
-- `fetchServerData`はPOST通信専用です
-- GETリクエストでも、必ず第2引数にbodyオブジェクトを渡してください
-- 空のデータの場合でも `{}` を渡す必要があります
+- `getServerData`と`postServerData`はプロキシルート（`/api/proxy`）経由でバックエンドと通信
+- GET/POST/PUT/DELETE全メソッドをサポート
+- GETリクエストの場合、bodyパラメータはクエリストリングに自動変換
 
 **国際化とエラーハンドリング：**
 
@@ -231,21 +229,22 @@ export default async function FilteredUsersPage() {
 - 401エラー: `unauthorized()` を自動呼び出し（認証ページにリダイレクト）
 - 403エラー: `forbidden()` を自動呼び出し（403ページにリダイレクト）
 - 404エラー: `notFound()` を自動呼び出し（404ページにリダイレクト）
-- その他エラー: `response.message` 配列にローカライズされたエラー内容が格納
+- その他エラー: `response.message` 文字列にローカライズされたエラー内容が格納
 
 **SSRデータ取得の特徴：**
 
 - `cache: 'no-store'` によりリアルタイムデータを取得
-- httpOnly Cookieから自動的にJWTトークンを取得・付与
+- httpOnly Cookieから自動的にJWTトークンを取得・プロキシで変換
 - Server Component内でのみ使用可能（Client Componentでは使用不可）
 
 ```typescript
 // ❌ 間違った使用方法
-const response = await fetchServerData<User[]>('/api/users'); // 第2引数が必要
+const response = await getServerData<User[]>('/api/users', { unnecessaryBody: true }); // GETの場合bodyは不要
 
 // ✅ 正しい使用方法  
-const response = await fetchServerData<User[]>('/api/users', {}); // 空オブジェクトでもOK
-const response = await fetchServerData<User[]>('/api/users', { limit: 10 }); // データ付きもOK
+const response = await getServerData<User[]>('/api/users'); // GETの場合はbodyなし
+const response = await getServerData<User[]>('/api/users', { filter: 'active' }); // GETでフィルタ（クエリストリングに変換）
+const response = await postServerData<User[]>('/api/users/search', { limit: 10 }); // POSTでデータ付き
 ```
 
 ### Client Components での API 通信
@@ -378,13 +377,13 @@ export default function DashboardPage() {
 
 ```typescript
 // サーバーサイドAPI通信
-import { fetchServerData, serverPost } from '@/utils/serverApi';
+import { getServerData, postServerData } from '@/utils/serverApiProxy';
 
 // Server Component内でのデータ取得（国際化・JWT・X-Language対応）
-const response = await fetchServerData<User[]>('/api/backend/users', {});
+const response = await getServerData<User[]>('/api/backend/users');
 
-// より詳細な制御
-const result = await serverPost<CreateResponse, CreateUserRequest>(
+// POSTでのデータ作成
+const result = await postServerData<CreateResponse, CreateUserRequest>(
   '/api/backend/users',
   { name: 'John', email: 'john@example.com' },
   { 'Custom-Header': 'value' }

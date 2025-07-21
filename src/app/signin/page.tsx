@@ -1,4 +1,4 @@
-import { AuthPage } from '@/features/auth/components';
+import { SignInPage } from '@/features/auth/components';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -14,5 +14,5 @@ export const metadata: Metadata = {
  * - 未ログイン: サインインフォームを表示
  */
 export default async function SigninPage() {
-  return <AuthPage />;
+  return <SignInPage />;
 }

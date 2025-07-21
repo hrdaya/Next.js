@@ -136,5 +136,5 @@ const MixedComponent = () => {
 新しい機能の翻訳を追加する場合：
 
 1. 翻訳ファイルを作成（例：`user.json`）
-2. `src/lib/i18n/i18n.ts`でインポートとリソース登録
+2. `src/lib/i18n/resources.ts`でインポートとリソース登録
 3. コンポーネントで`useTranslation('user')`として使用

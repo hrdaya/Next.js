@@ -4,6 +4,7 @@
  * このファイルは、フロントエンドとバックエンドAPI間の安全な通信を仲介するプロキシサーバーを実装しています。
  * 主な機能：
  * - セキュアなJWT管理（httpOnlyクッキー ⇔ Bearerトークン変換）
+ * - 自動JWTリフレッシュ機能（401エラー時の自動再試行）
  * - 国際化対応（X-Languageヘッダー自動付与）
  * - CORS問題の解決
  * - 統一されたエラーハンドリング
@@ -12,19 +13,172 @@
  * セキュリティ特徴：
  * - httpOnlyクッキーによるXSS攻撃防止
  * - JWT情報のクライアントサイド隠蔽
- * - Same-originポリシーによるCSRF対策
+ * - SameSite=Strictによるセッション保護
  * - プロダクション環境でのSecure Cookie強制
+ * - 自動トークンリフレッシュによるセッション継続
  *
- * @route POST /api/proxy
- * @security JWT management, httpOnly cookies, CORS handling
- * @dependencies Backend API Server (BACKEND_API_URL), getServerSession for JWT extraction
+ * @route POST /api/proxy (supports multiple HTTP methods via method parameter)
+ * @security JWT management, httpOnly cookies, CORS handling, automatic token refresh
+ * @dependencies Backend API Server (BACKEND_API_URL), getJwtCookie for JWT extraction
  */
 
 import { BACKEND_API_URL } from '@/constants';
-import { getServerSession } from '@/lib/auth/session';
-import { setJwtCookie } from '@/lib/auth/session';
+import {
+  secureJwtResponse,
+  setJwtAuthHeader,
+  tryRefreshJwt,
+} from '@/lib/auth/jwtCookie';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+
+/**
+ * デフォルトのコンテンツタイプ
+ * - JSONを使用する場合は 'application/json'
+ * - ファイルアップロードの場合は 'multipart/form-data'
+ */
+const defaultContentsType = 'application/json';
+
+/**
+ * GETリクエストのbodyをクエリストリングに変換してURLに追加
+ *
+ * @param url - 元のURL
+ * @param body - リクエストボディ（オブジェクト）
+ * @returns クエリストリング付きのURL
+ */
+function appendQueryStringToUrl(
+  url: string,
+  body: Record<string, unknown>
+): string {
+  if (!body || typeof body !== 'object') {
+    return url;
+  }
+
+  const queryParams = new URLSearchParams();
+
+  // for...ofを使用してオブジェクトのエントリを処理
+  for (const [key, value] of Object.entries(body)) {
+    if (value !== null && value !== undefined) {
+      queryParams.append(key, String(value));
+    }
+  }
+
+  const queryString = queryParams.toString();
+  if (queryString) {
+    return url + (url.includes('?') ? '&' : '?') + queryString;
+  }
+
+  return url;
+}
+
+/**
+ * リクエストから適切な言語コードを検出する
+ *
+ * @param request - NextRequestオブジェクト
+ * @param language - リクエストボディで指定された言語（優先）
+ * @returns 検出された言語コード、またはundefined
+ */
+function detectLanguage(
+  request: NextRequest,
+  language?: string
+): string | undefined {
+  // リクエストボディのlanguageパラメータを最優先
+  if (language) {
+    return language;
+  }
+
+  // Accept-Languageヘッダーから言語コードを抽出
+  const acceptLanguage = request.headers.get('Accept-Language');
+  if (acceptLanguage) {
+    // Accept-Languageから最初の言語コードを抽出（品質値やサブタグを除去）
+    return acceptLanguage.split(',')[0].split(';')[0].trim();
+  }
+
+  return undefined;
+}
+
+/**
+ * バックエンドレスポンスを処理してクライアント向けレスポンスを作成
+ * JWTがレスポンスに含まれる場合はhttpOnlyクッキーに保存し、ヘッダーから削除
+ *
+ * @param backendResponse - バックエンドからのレスポンス
+ * @param isGetAccessTokenUrl - アクセストークン取得URLかどうかのフラグ
+ * @returns 処理済みのクライアントレスポンス
+ */
+async function processBackendResponse(
+  backendResponse: Response,
+  isGetAccessTokenUrl: boolean
+): Promise<NextResponse> {
+  // JWT処理を実行：JWTがあればhttpOnlyクッキーに保存し、ヘッダーから削除
+  // レスポンスオブジェクトは参照渡しのため直接変更される
+  await secureJwtResponse(backendResponse, isGetAccessTokenUrl);
+
+  // バックエンドからのレスポンスがapplication/jsonの場合
+  if (
+    backendResponse.headers.get('Content-Type')?.includes(defaultContentsType)
+  ) {
+    // JSON解析（失敗時は空オブジェクトを返す）
+    const responseData = await backendResponse.json().catch(() => ({}));
+
+    // クライアント向けJSONレスポンスの作成
+    return NextResponse.json(responseData, {
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
+    });
+  }
+
+  // JSON以外のレスポンス（HTML、画像等）の場合はそのまま返す
+  return new NextResponse(backendResponse.body, {
+    status: backendResponse.status,
+    statusText: backendResponse.statusText,
+    headers: backendResponse.headers,
+  });
+}
+
+/**
+ * リクエストパラメータを解析・抽出する
+ *
+ * @param request - NextRequestオブジェクト
+ * @returns 解析されたリクエストパラメータ
+ */
+async function parseRequestParams(request: NextRequest) {
+  const contentType = request.headers.get('Content-Type');
+
+  let url: string;
+  let method: string;
+  let language: string;
+  let body: string | FormData | undefined;
+
+  if (contentType === defaultContentsType) {
+    const json = await request.json();
+
+    url = json.url;
+    method = json.method || 'POST';
+    language = json.language;
+
+    // GETメソッドの場合はbodyをクエリストリングに変換してURLに追加
+    if (method.toUpperCase() === 'GET' && json.body) {
+      url = appendQueryStringToUrl(url, json.body as Record<string, unknown>);
+      body = undefined;
+    } else {
+      body = JSON.stringify(json.body);
+    }
+  } else {
+    const formData = await request.formData();
+
+    url = formData.get('proxy_url') as string;
+    formData.delete('proxy_url');
+
+    method = formData.get('proxy_method') as string;
+    formData.delete('proxy_method');
+
+    language = formData.get('proxy_language') as string;
+    formData.delete('proxy_language');
+
+    body = formData;
+  }
+
+  return { url, method, language, body };
+}
 
 /**
  * バックエンドAPIへのプロキシ処理メイン関数
@@ -34,16 +188,18 @@ import { NextResponse } from 'next/server';
  *
  * 処理フロー：
  * 1. リクエストボディから転送先URL、HTTPメソッド、ボディデータを抽出
- * 2. サーバーサイドセッションからJWTを取得
- * 3. 国際化対応：現在言語をX-Languageヘッダーに設定
+ * 2. httpOnlyクッキーからJWTを取得
+ * 3. 国際化対応：現在選択されている言語をX-Languageヘッダーに設定
  * 4. バックエンドAPIへリクエスト送信（JWT付き）
- * 5. レスポンス処理：新しいJWTがあればhttpOnlyクッキーに保存
- * 6. セキュリティ：Authorizationヘッダーをクライアントレスポンスから削除
+ * 5. 401エラー時：JWTリフレッシュを試行し、成功時に再リクエスト
+ * 6. レスポンス処理：新しいJWTがあればhttpOnlyクッキーに保存
+ * 7. セキュリティ：Authorizationヘッダーをクライアントレスポンスから削除
  *
  * セキュリティメカニズム：
  * - JWT管理：httpOnlyクッキー（読み取り専用）⇔ Bearerトークン（バックエンド用）変換
+ * - 自動トークンリフレッシュ：401エラー検知時の自動JWT更新とリトライ
  * - クライアント隠蔽：JWTや認証情報をフロントエンドJavaScriptから完全に隠蔽
- * - 自動更新：バックエンドから新しいJWTが返された場合の自動更新機能
+ * - セッション保護：SameSite=StrictとhttpOnlyによる包括的セキュリティ
  *
  * 国際化機能：
  * - リクエストボディのlanguageパラメータを最優先
@@ -52,162 +208,75 @@ import { NextResponse } from 'next/server';
  *
  * @param request - フロントエンドからのプロキシリクエスト
  * @returns Promise<NextResponse> - プロキシされたレスポンス（JWT情報除去済み）
- *
- * @example
- * ```tsx
- * // useApiRequestフックを使用した推奨方法
- * 'use client';
- *
- * import { useApiRequest } from '@/hooks/useApiRequest';
- * import { useState } from 'react';
- *
- * const UserComponent = () => {
- *   const api = useApiRequest();
- *   const [users, setUsers] = useState([]);
- *
- *   // ユーザー一覧取得
- *   const fetchUsers = async () => {
- *     const response = await api.get('https://backend.example.com/api/users');
- *     if (response.ok) {
- *       setUsers(response.data);
- *     }
- *   };
- *
- *   // 新規ユーザー作成
- *   const createUser = async () => {
- *     const response = await api.create('https://backend.example.com/api/users', {
- *       name: 'John Doe',
- *       email: 'john@example.com'
- *     });
- *     if (response.ok) {
- *       console.log('ユーザー作成成功:', response.data);
- *       fetchUsers(); // 一覧を再取得
- *     }
- *   };
- *
- *   return (
- *     <div>
- *       <button onClick={fetchUsers}>ユーザー一覧取得</button>
- *       <button onClick={createUser}>新規ユーザー作成</button>
- *     </div>
- *   );
- * };
- * ```
- *
- * @example
- * ```tsx
- * // 直接プロキシAPIを呼び出す場合（非推奨）
- * // useApiRequestフックの使用を強く推奨します
- * const response = await fetch('/api/proxy', {
- *   method: 'POST',
- *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({
- *     url: 'https://backend.example.com/api/users',
- *     method: 'GET',
- *     language: 'ja' // オプション：明示的な言語指定
- *   })
- * });
- * ```
  */
 export async function POST(request: NextRequest) {
   try {
-    // Step 1: リクエストボディからプロキシパラメータを抽出
-    // フロントエンドから送信される転送先情報とオプションパラメータの取得
-    const { url, method = 'POST', body, language } = await request.json();
+    // リクエストパラメータの解析・抽出
+    const { url, method, language, body } = await parseRequestParams(request);
 
-    // Step 2: 基本バリデーション
-    // 転送先URLは必須パラメータ（セキュリティのため空値チェック）
+    // 基本バリデーション：転送先URLは必須パラメータ
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Step 3: サーバーサイドセッションからJWT認証トークンを取得
-    // httpOnlyクッキーに保存されたJWTを安全に読み取り
-    // クライアントサイドJavaScriptからはアクセス不可能
-    const jwt = await getServerSession();
+    // アクセストークンを取得するURLであるかどうかをチェック
+    const isGetAccessTokenUrl =
+      url.includes('/api/login') || url.includes('/api/refresh');
 
-    // Step 4: バックエンドリクエスト用ヘッダーの準備
-    // デフォルトでJSON通信を想定、後続でJWTと言語情報を追加
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    // バックエンドリクエスト用ヘッダーの準備
+    const headers: Record<string, string> = {};
 
-    // Step 5: JWT認証ヘッダーの設定
-    // サーバーサイドでJWTをBearerトークン形式に変換してバックエンドに送信
-    // これによりクライアントサイドからJWT情報を完全に隠蔽
-    if (jwt) {
-      headers.Authorization = `Bearer ${jwt}`;
+    // application/jsonのときのみContent-Typeを追加
+    const contentType = request.headers.get('Content-Type');
+    if (contentType === defaultContentsType) {
+      headers['Content-Type'] = defaultContentsType;
     }
 
-    // Step 6: 国際化対応 - 言語情報のX-Languageヘッダー設定
+    // JWT認証トークンをヘッダーに設定
+    // httpOnlyクッキーから取得したJWTを安全にBearerヘッダーに設定
+    await setJwtAuthHeader(headers);
+
+    // 国際化対応：言語情報のX-Languageヘッダー設定
     // バックエンドAPIが適切な言語でレスポンスを返すための言語情報の送信
-    // 優先順位: 1) リクエストボディのlanguageパラメータ > 2) Accept-Languageヘッダー
-    let targetLanguage = language;
-    if (!targetLanguage) {
-      // Accept-Languageヘッダーから言語コードを抽出
-      // 例: "ja,en;q=0.9,fr;q=0.8" -> "ja" を抽出
-      const acceptLanguage = request.headers.get('Accept-Language');
-      if (acceptLanguage) {
-        // Accept-Languageから最初の言語コードを抽出（品質値やサブタグを除去）
-        targetLanguage = acceptLanguage.split(',')[0].split(';')[0].trim();
-      }
-    }
-
-    // バックエンドが国際化対応している場合、X-Languageヘッダーで言語を通知
-    // これによりバックエンドは適切な言語でエラーメッセージやコンテンツを返すことが可能
+    const targetLanguage = detectLanguage(request, language);
     if (targetLanguage) {
       headers['X-Language'] = targetLanguage;
     }
 
-    // Step 7: バックエンドAPIへのリクエスト送信
-    // JWT認証ヘッダーと言語情報を含めてバックエンドサーバーに転送
-    // GETリクエストの場合はボディを送信しない（HTTP仕様遵守）
-    const backendResponse = await fetch(BACKEND_API_URL + url, {
-      method,
-      headers,
-      body: method !== 'GET' && body ? JSON.stringify(body) : undefined,
-    });
+    // バックエンドAPIへのリクエスト用のオプションを生成
+    const requestOptions: RequestInit = { method, headers, body };
 
-    // Step 8: バックエンドレスポンスの解析
-    // JSON解析に失敗した場合は空オブジェクトを返す（安全なフォールバック）
-    // バイナリデータやHTML等のレスポンスでもエラーにならないよう配慮
-    const responseData = await backendResponse.json().catch(() => ({}));
+    // バックエンドAPIの完全なURLを構築
+    const backendUrl = BACKEND_API_URL + url;
 
-    // Step 9: クライアント向けレスポンスの作成
-    // バックエンドのレスポンスデータとステータス情報をそのまま転送
-    // HTTPステータスコードとメッセージもプロキシして一貫性を保つ
-    const clientResponse = NextResponse.json(responseData, {
-      status: backendResponse.status,
-      statusText: backendResponse.statusText,
-    });
+    // バックエンドAPIへのリクエスト送信
+    let backendResponse = await fetch(backendUrl, requestOptions);
 
-    // Step 10: JWT自動更新機能
-    // バックエンドから新しいJWTが返された場合の処理
-    const responseAuthHeader = backendResponse.headers.get('Authorization');
+    // JWT認証エラー時の自動リフレッシュ処理
+    // 401エラーの場合、JWTリフレッシュを試行して元のリクエストを再実行
+    // これにより、ユーザーはログインし直すことなくセッションを継続できる
+    if (backendResponse.status === 401) {
+      const refreshResult = await tryRefreshJwt(requestOptions);
 
-    // バックエンドからJWTが返された場合、httpOnlyのcookieに安全に保存
-    // 認証の更新（リフレッシュトークン、権限変更等）に対応
-    if (responseAuthHeader?.startsWith('Bearer ')) {
-      // "Bearer "プレフィックスを除去してJWT本体を抽出
-      const newJwt = responseAuthHeader.substring(7);
+      if (refreshResult.success && refreshResult.jwt) {
+        // 新しいJWTを取得した場合、元のリクエストオプションを更新
+        const retryOptions: RequestInit = {
+          ...requestOptions,
+          headers: {
+            ...requestOptions.headers,
+            Authorization: `Bearer ${refreshResult.jwt}`,
+          },
+        };
 
-      // Step 11: httpOnlyクッキーへのJWT保存
-      // setJwtCookie関数を使用して一貫したクッキー設定を適用
-      // XSS攻撃防止、CSRF攻撃防止、本番環境でのHTTPS必須等のセキュリティ設定を統一
-      setJwtCookie(clientResponse, newJwt);
-
-      // Step 12: セキュリティ処理 - Authorizationヘッダーの削除
-      // クライアントレスポンスからJWT情報を完全に除去
-      // フロントエンドJavaScriptからJWTにアクセスできないようにする
-      // httpOnlyクッキーを使用するため、Authorizationヘッダーは不要
-      clientResponse.headers.delete('Authorization');
+        // リフレッシュ成功後、元のリクエストを再実行
+        backendResponse = await fetch(backendUrl, retryOptions);
+      }
     }
 
-    // Step 13: 正常終了
-    // プロキシ処理完了：JWT情報が安全に処理されたクリーンなレスポンスを返す
-    return clientResponse;
+    // バックエンドレスポンスを処理してクライアント向けレスポンスを作成
+    return await processBackendResponse(backendResponse, isGetAccessTokenUrl);
   } catch (error) {
-    // Step 14: エラーハンドリング
+    // エラーハンドリング
     // ネットワークエラー、JSONパースエラー、バックエンド接続エラー等の包括的処理
     // セキュリティのため詳細なエラー情報は隠蔽し、ログにのみ出力
     console.error('Backend proxy error:', error);

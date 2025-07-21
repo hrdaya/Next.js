@@ -12,7 +12,7 @@
  *
  * 機能：
  * - ユーザーフレンドリーな認証エラーメッセージの表示
- * - サインインフォームの提供（AuthPageコンポーネント経由）
+ * - サインインフォームの提供（SignInPageコンポーネント経由）
  * - 自動的なサインアウト処理（既存の無効セッションのクリア）
  * - 国際化対応（メタデータと画面表示）
  *
@@ -26,7 +26,7 @@
  * @accessibility Provides clear messaging for authentication requirements
  */
 
-import { AuthPage } from '@/features/auth/components';
+import { SignInPage } from '@/features/auth/components';
 import type { Metadata } from 'next';
 
 /**
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
  * 認証エラーページのメインコンポーネント
  *
  * HTTP 401 Unauthorizedエラー時に表示されるNext.js App Routerの特殊ページです。
- * AuthPageコンポーネントを再利用することで、一貫したUI/UXを提供します。
+ * SignInPageコンポーネントを再利用することで、一貫したUI/UXを提供します。
  *
  * 動作フロー：
  * 1. 認証が必要なリソースへの未認証アクセス発生
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
  * 5. ユーザーは認証情報を入力してサインイン
  * 6. 認証成功後、元のページまたはダッシュボードにリダイレクト
  *
- * AuthPageコンポーネントの特徴：
+ * SignInPageコンポーネントの特徴：
  * - サインインフォームの提供
  * - 国際化対応（エラーメッセージの多言語化）
  * - バリデーション機能
@@ -84,5 +84,5 @@ export const metadata: Metadata = {
  * // サーバーコンポーネントで unauthorized() 呼び出し → このページが表示
  */
 export default function Page() {
-  return <AuthPage />;
+  return <SignInPage />;
 }

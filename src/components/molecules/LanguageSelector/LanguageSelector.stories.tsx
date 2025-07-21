@@ -22,7 +22,7 @@ const meta = {
 1. \`src/lib/i18n/languages.ts\` に言語設定を追加
 2. \`src/locales/{languageCode}/\` フォルダを作成
 3. 翻訳ファイルを追加
-4. \`src/lib/i18n/i18n.ts\` のresourcesに追加
+4. \`src/lib/i18n/resources.ts\` で共通リソースに追加（自動的にクライアント・サーバー両方で利用可能）
 
 新しい言語を追加すると、このコンポーネントで自動的に選択肢に表示されます。
         `,

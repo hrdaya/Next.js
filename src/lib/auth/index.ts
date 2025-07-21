@@ -30,15 +30,18 @@ export { default as AuthRequired } from './AuthRequired';
 // ===== セッション管理 =====
 /**
  * HTTPOnlyクッキーからのJWTトークン取得と管理
- * - getServerSession: サーバーサイドでのセッション取得
+ * - getJwtCookie: サーバーサイドでのセッション取得
  * - setJwtCookie: セキュアなJWTクッキーの設定
  * - clearJwtCookie: JWTクッキーの削除
  */
 export {
-  getServerSession,
+  getJwtCookie,
   setJwtCookie,
   clearJwtCookie,
-} from './session';
+  secureJwtResponse,
+  setJwtAuthHeader,
+  tryRefreshJwt,
+} from './jwtCookie';
 
 // ===== JWT トークン操作 =====
 /**
@@ -81,7 +84,7 @@ export {
 export {
   verifyTokenLocally,
   type TokenVerificationResult,
-} from './tokenVerification';
+} from './jwt';
 
 // ===== ユーティリティ関数 =====
 /**
@@ -92,4 +95,5 @@ export {
  * - サインインページへの自動リダイレクト
  * - エラー耐性のあるログアウト処理
  */
-export { signOut } from './utils';
+// ログアウト機能（サーバーアクション）
+// ログアウト処理は src/features/auth/actions/SignOut.ts のサーバーアクションを使用

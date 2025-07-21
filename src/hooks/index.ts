@@ -13,7 +13,3 @@ export { useDebounce } from './useDebounce';
 
 // API通信フック
 export { useApiRequest } from './useApiRequest';
-
-// サーバーサイドAPI通信（Server Components用）
-// 注意: これはReactフックではありません
-export { fetchServerData, serverPost } from '../utils/serverApi';

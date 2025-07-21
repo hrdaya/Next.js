@@ -14,11 +14,15 @@
     "deleteData": "データ削除に失敗しました。",
     "uploadFile": "ファイルアップロードに失敗しました。",
     "downloadFile": "ファイルダウンロードに失敗しました。",
-    "methodNotAllowed": "メソッドが許可されていません。[{{url}}]",
+    "methodNotAllowed": "メソッドが許可されていません。",
     "optimisticLock": "他の人によって更新されています。再度データを読み込みなおしてください。",
     "maintenance": "メンテナンス中です。",
     "networkError": "ネットワーク通信に失敗しました。",
     "internalServerError": "サーバー内部エラーが発生しました。",
-    "genericError": "{{status}} for {{url}}"
+    "invalidResponseFormat": "無効なレスポンス形式です。",
+    "badRequest": "不正なリクエストです。",
+    "unauthorized": "ログインしてください。",
+    "forbidden": "アクセスが禁止されています。",
+    "notFound": "データが見つかりませんでした。"
   }
 }

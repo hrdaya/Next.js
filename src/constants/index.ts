@@ -7,6 +7,9 @@ export const APP_CONFIG = {
 export const BACKEND_API_URL =
   process.env.BACKEND_API_URL || 'http://localhost:8000';
 
+export const NEXT_PUBLIC_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
+
 export const ROUTES = {
   HOME: '/',
   HEALTH: '/api/healthcheck',

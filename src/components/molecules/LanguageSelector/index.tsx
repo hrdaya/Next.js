@@ -67,7 +67,10 @@ export function LanguageSelector({
   }, [isOpen]);
 
   const handleLanguageChange = (languageCode: string) => {
+    // i18nextインスタンスの言語を変更
+    // i18nextがCookie設定も自動的に行う（detection.caches: ['cookie']により）
     i18n.changeLanguage(languageCode);
+
     setIsOpen(false);
   };
 

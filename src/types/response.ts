@@ -7,7 +7,7 @@ export interface ResponseBase<T> {
   ok: boolean;
   status: number;
   statusText: string;
-  message?: string | string[];
+  message?: string;
   data?: T;
   errors?: { [name: string]: string[] };
 }

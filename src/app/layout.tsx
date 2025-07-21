@@ -13,7 +13,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // サーバーサイドで言語を検出
+  // サーバーサイドで現在選択されている言語を検出
   const { language } = await getServerI18n();
 
   return (

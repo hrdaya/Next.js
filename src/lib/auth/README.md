@@ -6,10 +6,8 @@
 src/lib/auth/
 ├── AuthRequired.tsx      # 認証が必要なページ用のラッパーコンポーネント
 ├── index.ts             # ライブラリのエントリーポイント
-├── jwt.ts               # JWT関連のユーティリティ関数（ローカル検証）
-├── session.ts           # JWT Session管理 (httpOnly Cookie)
-├── tokenVerification.ts # トークン検証処理（ローカル検証）
-├── utils.ts             # 認証ユーティリティ関数
+├── jwt.ts               # JWT関連のユーティリティ関数（ローカル検証・トークン検証）
+├── jwtCookie.ts         # JWT Cookie管理とリフレッシュ機能
 └── README.md            # このドキュメント
 ```
 
@@ -47,31 +45,31 @@ src/lib/auth/
 - `isJWTExpired()` - 期限切れチェック
 - `getJWTExpirationTime()` - 有効期限までの残り時間取得
 - `getJWTUserInfo()` - ユーザー情報の抽出
-- `JWTPayload` - JWTペイロードの型定義
+- `verifyTokenLocally()` - ローカルでのJWT有効期限チェック（高速検証）
+- `JWTPayload`, `TokenVerificationResult` - 型定義
 - 外部サーバーへの問い合わせなしで高速検証
 
-### `session.ts`
+### `jwtCookie.ts`
 
-- **httpOnly Cookie**を使用したJWT Session管理
-- `getServerSession()` - サーバーサイドでのJWT取得
-- `setJwtCookie()` - セキュアなJWTクッキーの設定
+- **httpOnly Cookie**を使用したJWT管理とリフレッシュ機能
+- `getJwtCookie()` - サーバーサイドでのJWT取得
+- `setJwtCookie()` - セキュアなJWTクッキーの設定（有効期限対応）
 - `clearJwtCookie()` - JWTクッキーの削除
+- `secureJwtResponse()` - JWTの安全な処理とクッキー設定
+- `setJwtAuthHeader()` - リクエストヘッダーにJWT認証トークンを設定
+- `tryRefreshJwt()` - JWT自動リフレッシュ機能
 - Server Components、API Routes で使用
 - XSS攻撃からJWTトークンを保護する安全な実装
 
-### `tokenVerification.ts`
+### サーバーアクションによるログアウト
 
-- **ローカル検証**をサポート
-- `verifyTokenLocally()` - **推奨**: ローカルでのJWT有効期限チェック
-- `TokenVerificationResult` - 検証結果の型定義
-- パフォーマンス重視のローカル検証で高速処理
+ログアウト機能は、`src/features/auth/actions/SignOut.ts` のサーバーアクションとして実装されています：
 
-### `utils.ts`
-
-- 認証関連のユーティリティ関数
-- `signOut()` - どこからでも呼び出せるサインアウト機能
-- httpOnly Cookie をクリアするためのAPI経由実行
-- コンポーネントや関数から独立した認証操作
+- **サーバーアクション**: フォームアクションとして安全に呼び出し可能
+- **バックエンド連携**: `/api/logout` エンドポイントに POST リクエスト
+- **クッキー削除**: HTTPOnlyクッキーの安全な削除
+- **自動リダイレクト**: サインイン画面への自動遷移
+- **エラー耐性**: バックエンドエラーでもローカルクッキーは確実に削除
 
 ## 🚀 使用方法
 
@@ -81,17 +79,21 @@ src/lib/auth/
 // 必要な機能のみをインポート
 import {
   AuthRequired,
-  signOut,
   verifyTokenLocally,
   isJWTValid,
-  getServerSession,
+  getJwtCookie,
   setJwtCookie,
-  type JWTPayload
+  tryRefreshJwt,
+  type JWTPayload,
+  type TokenVerificationResult
 } from '@/lib/auth';
+
+// サーバーアクションでのログアウト
+import { signOutAction } from '@/features/auth/actions/SignOut';
 
 // または特定モジュールから直接インポート
 import { isJWTValid } from '@/lib/auth/jwt';
-import { getServerSession } from '@/lib/auth/session';
+import { getJwtCookie } from '@/lib/auth/jwtCookie';
 ```
 
 ### AuthRequiredコンポーネントの使用
@@ -118,7 +120,7 @@ export default function AuthenticatedLayout({
 import { verifyTokenLocally, isJWTValid } from '@/lib/auth';
 
 export default async function ProtectedPage() {
-  const token = await getServerSession();
+  const token = await getJwtCookie();
 
   if (!token || !isJWTValid(token)) {
     return <div>認証が必要です</div>;
@@ -135,11 +137,11 @@ export default async function ProtectedPage() {
 
 ```tsx
 // app/api/protected/route.ts
-import { getServerSession, verifyTokenLocally } from '@/lib/auth';
+import { getJwtCookie, verifyTokenLocally } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  const token = await getServerSession();
+  const token = await getJwtCookie();
 
   if (!token) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -249,11 +251,11 @@ export async function getTokenDetails(token: string) {
 }
 ```
 
-### ミドルウェア認証処理
+### 認証保護の仕組み
 
 ```tsx
 // 認証システムは Route Groups + AuthRequired パターンを採用
-// ミドルウェアは使用していません
+// 従来のミドルウェア方式は使用していません
 
 // src/app/(authenticated)/layout.tsx
 import AuthRequired from '@/lib/auth/AuthRequired';
@@ -261,6 +263,7 @@ import AuthRequired from '@/lib/auth/AuthRequired';
 /**
  * 認証が必要なページのレイアウト
  * AuthRequiredコンポーネントで認証チェックを実行
+ * このパターンにより、(authenticated)フォルダ内のすべてのページが自動的に保護される
  */
 export default function AuthenticatedLayout({
   children,
@@ -271,21 +274,41 @@ export default function AuthenticatedLayout({
 }
 ```
 
-### サインアウト処理
+### サーバーアクションでのログアウト処理
 
 ```tsx
-import { signOut } from '@/lib/auth/utils';
+import { signOutAction } from '@/features/auth/actions/SignOut';
 
-// 任意のコンポーネントから呼び出し可能
+// フォームアクションとしての使用（推奨）
 export function LogoutButton() {
-  const handleLogout = async () => {
-    await signOut();
-    // サインアウト後は自動的に /signin にリダイレクト
+  return (
+    <form action={signOutAction}>
+      <button type="submit" className="btn btn-secondary">
+        ログアウト
+      </button>
+    </form>
+  );
+}
+
+// ボタンクリックでの使用
+import { useTransition } from 'react';
+
+export function LogoutButtonAsync() {
+  const [isPending, startTransition] = useTransition();
+  
+  const handleLogout = () => {
+    startTransition(() => {
+      signOutAction();
+    });
   };
 
   return (
-    <button onClick={handleLogout}>
-      ログアウト
+    <button 
+      onClick={handleLogout}
+      disabled={isPending}
+      className="btn btn-secondary"
+    >
+      {isPending ? 'ログアウト中...' : 'ログアウト'}
     </button>
   );
 }
@@ -298,8 +321,14 @@ export function LogoutButton() {
 ```text
 src/app/api/auth/
 ├── signin/route.ts       # POST /api/auth/signin - サインイン処理
-├── signout/route.ts      # POST /api/auth/signout - サインアウト処理
 └── me/route.ts           # GET /api/auth/me - ユーザー情報取得
+```
+
+### サーバーアクション (認証機能)
+
+```text
+src/features/auth/actions/
+└── SignOut.ts            # サーバーアクション - ログアウト処理
 ```
 
 ### Route Groups (認証保護)
@@ -392,4 +421,4 @@ COOKIE_DOMAIN=localhost  # 本番では実際のドメイン
 
 - **認証状態が更新されない**: httpOnly Cookie が正しくクリアされているかブラウザの開発者ツールで確認
 - **AuthRequired でリダイレクトループ**: `/signin` ページの実装とRoute Groupsの設定を確認
-- **サーバーサイドエラー**: `getServerSession()` 呼び出し時のクッキーアクセス権限を確認
+- **サーバーサイドエラー**: `getJwtCookie()` 呼び出し時のクッキーアクセス権限を確認

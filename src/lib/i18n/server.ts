@@ -26,26 +26,12 @@
 
 import i18n from 'i18next';
 import { headers } from 'next/headers';
+import { cookies } from 'next/headers';
 
-// 翻訳ファイルのインポート
-// クライアントサイドと同じ翻訳リソースを使用して一貫性を保つ
-import enTranslations from '@/locales/en/common.json';
-import jaTranslations from '@/locales/ja/common.json';
-
-/**
- * サーバーサイド翻訳リソース構造
- *
- * クライアントサイドと同一の構造を維持し、
- * 翻訳内容の一貫性を確保
- */
-const resources = {
-  en: {
-    common: enTranslations,
-  },
-  ja: {
-    common: jaTranslations,
-  },
-};
+// 共通の言語設定をインポート
+import { supportedLanguages, supportedNamespaces } from './languages';
+// 共通の翻訳リソースをインポート
+import { commonResources } from './resources';
 
 /**
  * サーバーサイド専用i18nextインスタンス
@@ -66,8 +52,8 @@ const serverI18n = i18n.createInstance();
  * - 即座に初期化（サーバー環境では安全）
  */
 serverI18n.init({
-  // 翻訳リソース（クライアントと同一）
-  resources,
+  // 翻訳リソース（クライアントと同一の共通リソースを使用）
+  resources: commonResources,
 
   // フォールバック言語
   fallbackLng: 'en',
@@ -75,8 +61,8 @@ serverI18n.init({
   // デフォルト名前空間
   defaultNS: 'common',
 
-  // 利用可能な名前空間
-  ns: ['common'],
+  // 利用可能な名前空間（共通定義を使用）
+  ns: supportedNamespaces,
 
   // テキスト補間設定
   interpolation: {
@@ -86,19 +72,18 @@ serverI18n.init({
 });
 
 /**
- * サーバーサイドでのHTTPヘッダーベース言語検出とi18n初期化
+ * サーバーサイドでの多段階言語検出とi18n初期化
  *
  * この関数は各リクエストで呼び出され、以下の処理を行います:
- * 1. Accept-Languageヘッダーの解析
+ * 1. 複数ソースからの言語検出（優先順位付き）
  * 2. サポート言語との照合
  * 3. 検出された言語でのi18nextインスタンス設定
  * 4. 言語情報とインスタンスの返却
  *
- * Accept-Language解析ロジック:
- * - カンマ区切りの言語リストを解析
- * - 品質値（q=0.9）を無視してシンプルに処理
- * - 地域コード（en-US）から言語コード（en）を抽出
- * - サポート言語との最初のマッチを採用
+ * 言語検出の優先順位（クライアントサイドと類似した戦略）:
+ * 1. Cookie（ユーザーの明示的な選択を記憶）
+ * 2. Accept-Languageヘッダー（ブラウザ設定）
+ * 3. フォールバック言語（en）
  *
  * @returns Promise<{i18n: i18next, language: string}>
  *   初期化済みi18nextインスタンスと検出言語
@@ -106,10 +91,27 @@ serverI18n.init({
 export async function getServerI18n() {
   // Next.js headers()を使用してHTTPヘッダーを取得
   const headersList = await headers();
-  const acceptLanguage = headersList.get('accept-language') || '';
+  const supportedLanguagesList = supportedLanguages;
 
   /**
-   * Accept-Languageヘッダーの解析処理
+   * 1. Cookie からの言語検出（最優先）
+   *
+   * ユーザーが明示的に選択した言語設定を尊重
+   * クライアントサイドのlocalStorageと同期するためのCookie
+   */
+  const cookieStore = await cookies();
+  const cookieLanguage = cookieStore.get('i18nextLng')?.value;
+
+  if (cookieLanguage && supportedLanguagesList.includes(cookieLanguage)) {
+    await serverI18n.changeLanguage(cookieLanguage);
+    return {
+      i18n: serverI18n,
+      language: cookieLanguage,
+    };
+  }
+
+  /**
+   * 2. Accept-Languageヘッダーからの言語検出
    *
    * 例: "en-US,en;q=0.9,ja;q=0.8" → ["en", "en", "ja"]
    *
@@ -119,6 +121,7 @@ export async function getServerI18n() {
    * 3. 小文字に正規化
    * 4. ハイフンで分割して言語コードのみ抽出
    */
+  const acceptLanguage = headersList.get('accept-language') || '';
   const preferredLanguages = acceptLanguage
     .split(',')
     .map((lang: string) => lang.split(';')[0].trim().toLowerCase())
@@ -130,10 +133,9 @@ export async function getServerI18n() {
    * アプリケーションでサポートしている言語の中から、
    * ユーザーの優先言語リストの最初のマッチを選択
    */
-  const supportedLanguages = Object.keys(resources);
   const detectedLanguage =
     preferredLanguages.find((lang: string) =>
-      supportedLanguages.includes(lang)
+      supportedLanguagesList.includes(lang)
     ) || 'en'; // マッチしない場合は英語をフォールバック
 
   /**
@@ -178,4 +180,56 @@ export async function getServerTranslation(
 ) {
   const { i18n } = await getServerI18n();
   return i18n.t(key, options);
+}
+
+/**
+ * サーバーサイドでの言語設定Cookie更新
+ *
+ * ユーザーが言語を変更した際に、サーバーサイドからCookieを設定するためのヘルパー関数
+ * クライアントサイドのlocalStorageと同期を取るため、同じキー名を使用
+ *
+ * 使用例:
+ * ```tsx
+ * // Server Action内で
+ * import { setServerLanguageCookie } from '@/lib/i18n/server';
+ *
+ * async function changeLanguage(language: string) {
+ *   'use server';
+ *   await setServerLanguageCookie(language);
+ *   // リダイレクトやrevalidateなどの処理
+ * }
+ * ```
+ *
+ * @param language - 設定する言語コード（例: 'en', 'ja'）
+ */
+export async function setServerLanguageCookie(language: string) {
+  const cookieStore = await cookies();
+
+  // クライアントサイドと同じキー名でCookieを設定
+  cookieStore.set('i18nextLng', language, {
+    httpOnly: false, // クライアントサイドからも読み取り可能
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 365 * 24 * 60 * 60, // 1年間有効
+    path: '/',
+  });
+}
+
+/**
+ * サーバーサイドでの現在の言語取得
+ *
+ * Server Componentsで現在の言語設定のみを取得したい場合のヘルパー関数
+ * 翻訳処理は不要で、言語情報だけが必要な場合に使用
+ *
+ * 使用例:
+ * ```tsx
+ * // Server Component内で
+ * const currentLanguage = await getCurrentServerLanguage();
+ * ```
+ *
+ * @returns Promise<string> 現在の言語コード
+ */
+export async function getCurrentServerLanguage(): Promise<string> {
+  const { language } = await getServerI18n();
+  return language;
 }
