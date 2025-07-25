@@ -256,15 +256,15 @@ export async function POST(request: NextRequest) {
     // 401エラーの場合、JWTリフレッシュを試行して元のリクエストを再実行
     // これにより、ユーザーはログインし直すことなくセッションを継続できる
     if (backendResponse.status === 401) {
-      const refreshResult = await tryRefreshJwt(requestOptions);
+      const newJwt = await tryRefreshJwt(requestOptions);
 
-      if (refreshResult.success && refreshResult.jwt) {
+      if (newJwt) {
         // 新しいJWTを取得した場合、元のリクエストオプションを更新
         const retryOptions: RequestInit = {
           ...requestOptions,
           headers: {
             ...requestOptions.headers,
-            Authorization: `Bearer ${refreshResult.jwt}`,
+            Authorization: `Bearer ${newJwt}`,
           },
         };
 

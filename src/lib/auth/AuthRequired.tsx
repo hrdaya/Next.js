@@ -77,14 +77,13 @@ export default async function AuthRequired({ children }: AuthRequiredProps) {
   if (!isValid || isExpired) {
     // JWTリフレッシュを試行
     try {
-      const refreshResult = await tryRefreshJwt({
-        method: 'GET',
+      const newJwt = await tryRefreshJwt({
         headers: {
           Authorization: `Bearer ${jwt}`,
         },
       });
 
-      if (refreshResult.success && refreshResult.jwt) {
+      if (newJwt) {
         // リフレッシュ成功：認証成功として処理を続行
         // 注意: リフレッシュしたJWTは既にクッキーに保存済みで、有効性も保証済み
         return <>{children}</>;

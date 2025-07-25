@@ -264,12 +264,11 @@ export async function setJwtAuthHeader(
  * 新しいJWTトークンの取得を試行します。
  *
  * @param originalRequestOptions - 元のリクエストオプション
- * @returns Promise<{ success: boolean; jwt: string | null; response?: Response }>
- *          リフレッシュ結果と新しいJWT、必要に応じてレスポンス
+ * @returns Promise<string | null> リフレッシュ成功時は新しいJWT、失敗時はnull
  */
 export async function tryRefreshJwt(
   originalRequestOptions: RequestInit
-): Promise<{ success: boolean; jwt: string | null; response?: Response }> {
+): Promise<string | null> {
   try {
     // リフレッシュ用のオプションを作成（GETリクエスト、ボディは除去）
     const refreshOptions: RequestInit = {
@@ -285,26 +284,13 @@ export async function tryRefreshJwt(
     );
 
     if (refreshResponse.status === 200) {
-      // JWTを抽出してクッキーに保存
-      const jwt = await secureJwtResponse(refreshResponse, true);
-
-      return {
-        success: true,
-        jwt: jwt,
-        response: refreshResponse,
-      };
+      // JWTを抽出してクッキーに保存し、新しいJWTを返す
+      return await secureJwtResponse(refreshResponse, true);
     }
 
-    return {
-      success: false,
-      jwt: null,
-      response: refreshResponse,
-    };
+    return null;
   } catch (error) {
     console.error('JWT refresh failed:', error);
-    return {
-      success: false,
-      jwt: null,
-    };
+    return null;
   }
 }

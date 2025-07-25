@@ -107,12 +107,14 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 │   │   ├── (authenticated)/ # 🔒 認証必須ページ群
 │   │   └── api/             # API Routes
 │   ├── components/          # UIコンポーネント (Atomic Design)
+│   ├── constants/           # 定数
+│   ├── features/            # 機能ごと（ドメイン）のロジック
 │   ├── hooks/               # カスタムフック
 │   ├── lib/                 # ライブラリ設定 (認証・国際化)
-│   ├── utils/               # ユーティリティ関数
-│   ├── types/               # TypeScript型定義
 │   ├── locales/             # 国際化メッセージ
-│   └── tests/               # テストファイル
+│   ├── tests/               # テストファイル
+│   ├── types/               # TypeScript型定義
+│   └── utils/               # ユーティリティ関数
 ├── .github/                 # GitHub Actions・開発ガイドライン
 ├── .storybook/              # Storybook設定
 ├── biome.json               # Biome設定
