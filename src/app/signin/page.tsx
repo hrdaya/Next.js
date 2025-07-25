@@ -1,9 +1,14 @@
 import { SignInPage } from '@/features/auth/components';
+import { getServerTranslation } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = {
-  title: 'ログイン',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const title = await getServerTranslation('auth:signInTitle');
+
+  return {
+    title: title,
+  };
+}
 
 /**
  * サインインページ

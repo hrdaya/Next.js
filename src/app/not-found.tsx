@@ -44,39 +44,18 @@
  */
 
 import { NotFoundPage } from '@/features/errors/components/NotFoundPage';
+import { getServerTranslation } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
-/**
- * 404 Not Foundページのメタデータ設定
- *
- * 404エラーページのSEOとブラウザ表示用メタデータを定義します。
- * 検索エンジンとユーザー双方に適切な情報を提供し、サイトの信頼性を維持します。
- *
- * 設定項目：
- * - title: 明確なHTTPステータスコードを含むタイトル
- * - description: ユーザーが理解しやすい状況説明
- * - 将来的な拡張: robots（noindex推奨）、canonical、サイトマップリンク等
- *
- * SEO最適化：
- * - 404ページは検索結果に表示されるべきではない
- * - robots.txtまたはmetaタグでnoindex, nofollowを設定推奨
- * - 正確なHTTPステータスコード（404）の明示
- * - ソフト404（200ステータス）の回避
- * - 構造化データでエラーページマークアップ
- *
- * ユーザビリティ：
- * - ブラウザタブで状況が一目で分かるタイトル
- * - 技術的すぎない、親しみやすい説明文
- * - ブランドトーンに一致したメッセージング
- *
- * 国際化対応：
- * 現在は英語で設定されているが、将来的にはi18n対応が可能
- * ユーザーの言語設定に応じた動的メタデータ生成も検討可能
- */
-export const metadata: Metadata = {
-  title: '404 - Page Not Found', // HTTPステータス明示でトラブルシューティング支援
-  description: 'The page you are looking for could not be found.', // 分かりやすく、責めない表現
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const title = await getServerTranslation('errors:notFound.title');
+  const description = await getServerTranslation('errors:notFound.description');
+
+  return {
+    title: title,
+    description: description,
+  };
+}
 
 /**
  * 404 Not Foundページのメインコンポーネント

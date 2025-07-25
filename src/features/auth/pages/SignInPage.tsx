@@ -1,7 +1,6 @@
 'use client';
 
 import { useApiRequest } from '@/hooks';
-import { setJwtCookie } from '@/lib/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';

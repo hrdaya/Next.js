@@ -3,6 +3,7 @@
 import { LoadingOverlay } from '@/components/atoms';
 import { signOutAction } from '@/features/auth/actions/SignOut';
 import { useTransition } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface LogoutButtonAdvancedProps {
   logoutText: string;
@@ -17,6 +18,7 @@ export function LogoutButtonAdvanced({
   logoutText,
 }: LogoutButtonAdvancedProps) {
   const [isPending, startTransition] = useTransition();
+  const { t } = useTranslation('common');
 
   const handleLogout = () => {
     startTransition(() => {
@@ -26,7 +28,7 @@ export function LogoutButtonAdvanced({
 
   return (
     <>
-      <LoadingOverlay isVisible={isPending} message="ログアウト中..." />
+      <LoadingOverlay isVisible={isPending} message={t('Common.loggingOut')} />
 
       <button
         type="button"
@@ -41,7 +43,7 @@ export function LogoutButtonAdvanced({
         {isPending ? (
           <div className="flex items-center space-x-2">
             <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-            <span>処理中...</span>
+            <span>{t('Common.processing')}</span>
           </div>
         ) : (
           logoutText

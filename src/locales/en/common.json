@@ -5,7 +5,10 @@
   "Common": {
     "loading": "Loading...",
     "logout": "Logout",
-    "defaultUser": "User"
+    "defaultUser": "User",
+    "loggingOut": "Logging out...",
+    "processing": "Processing...",
+    "pleaseWait": "Please wait..."
   },
   "ApiErrors": {
     "getData": "Failed to fetch data.",

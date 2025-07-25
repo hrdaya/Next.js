@@ -177,7 +177,7 @@ export async function getServerI18n() {
 export async function getServerTranslation(
   key: string,
   options?: Record<string, unknown>
-) {
+): Promise<string> {
   const { i18n } = await getServerI18n();
   return i18n.t(key, options);
 }

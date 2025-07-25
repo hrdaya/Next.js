@@ -27,24 +27,16 @@
  */
 
 import { SignInPage } from '@/features/auth/components';
+import { getServerTranslation } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
-/**
- * ページメタデータの設定
- *
- * 認証エラーページのSEOとブラウザ表示用メタデータを定義します。
- * ユーザーにとって分かりやすいタイトルを設定し、認証が必要であることを明示します。
- *
- * 設定項目：
- * - title: ブラウザタブとSEOで表示されるページタイトル
- * - 将来的な拡張: description, robots（noindex推奨）等
- *
- * 国際化対応：
- * 現在は日本語で固定されていますが、将来的にはi18n対応が可能
- */
-export const metadata: Metadata = {
-  title: 'ログイン', // 認証が必要であることを示すシンプルなタイトル
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const title = await getServerTranslation('errors:unauthorized.title');
+
+  return {
+    title: title,
+  };
+}
 
 /**
  * 認証エラーページのメインコンポーネント

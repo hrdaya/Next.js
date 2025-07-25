@@ -111,13 +111,13 @@ export function DashboardPage() {
                 size="sm"
                 variant="secondary"
               >
-                Unauthorized
+                {t('errors:unauthorized')}
               </Button>
               <Button onClick={() => forbidden()} size="sm" variant="secondary">
-                Forbidden
+                {t('errors:forbidden')}
               </Button>
               <Button onClick={() => notFound()} size="sm" variant="outline">
-                Not Found
+                {t('errors:notFound')}
               </Button>
             </div>
           </div>

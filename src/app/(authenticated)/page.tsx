@@ -19,10 +19,11 @@ export default async function Page() {
   }
 
   // サーバーサイドで翻訳を取得（SSR対応）
-  const welcomeText = await getServerTranslation('HomePage.welcome', {
-    name: user?.name || (await getServerTranslation('Common.defaultUser')),
+  const welcomeText = await getServerTranslation('dashboard:welcome', {
+    name:
+      user?.name || (await getServerTranslation('common:Common.defaultUser')),
   });
-  const logoutText = await getServerTranslation('Common.logout');
+  const logoutText = await getServerTranslation('common:Common.logout');
 
   return (
     <div className="p-4">

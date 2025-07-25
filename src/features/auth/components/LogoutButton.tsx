@@ -2,6 +2,7 @@
 
 import { signOutAction } from '@/features/auth/actions/SignOut';
 import { useTransition } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface LogoutButtonProps {
   logoutText: string;
@@ -15,6 +16,7 @@ interface LogoutButtonProps {
  */
 export function LogoutButton({ logoutText }: LogoutButtonProps) {
   const [isPending, startTransition] = useTransition();
+  const { t } = useTranslation('common');
 
   const handleLogout = () => {
     startTransition(() => {
@@ -29,7 +31,7 @@ export function LogoutButton({ logoutText }: LogoutButtonProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg flex items-center space-x-3">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600" />
-            <span className="text-gray-700">ログアウト中...</span>
+            <span className="text-gray-700">{t('Common.loggingOut')}</span>
           </div>
         </div>
       )}
@@ -45,7 +47,7 @@ export function LogoutButton({ logoutText }: LogoutButtonProps) {
             : 'bg-red-600 text-white hover:bg-red-700'
         }`}
       >
-        {isPending ? 'ログアウト中...' : logoutText}
+        {isPending ? t('Common.loggingOut') : logoutText}
       </button>
     </>
   );

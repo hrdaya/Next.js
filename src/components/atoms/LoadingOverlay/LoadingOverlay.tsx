@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslation } from 'react-i18next';
+
 interface LoadingOverlayProps {
   isVisible: boolean;
   message?: string;
@@ -11,11 +13,12 @@ interface LoadingOverlayProps {
  * ログアウト処理中やその他の重要な処理中に
  * 画面全体を覆うローディング表示を提供します。
  */
-export function LoadingOverlay({
-  isVisible,
-  message = '処理中...',
-}: LoadingOverlayProps) {
+export function LoadingOverlay({ isVisible, message }: LoadingOverlayProps) {
+  const { t } = useTranslation('common');
+
   if (!isVisible) return null;
+
+  const displayMessage = message || t('Common.processing');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -28,8 +31,8 @@ export function LoadingOverlay({
 
         {/* メッセージ */}
         <div className="text-center">
-          <p className="text-gray-700 font-medium">{message}</p>
-          <p className="text-gray-500 text-sm mt-1">しばらくお待ちください</p>
+          <p className="text-gray-700 font-medium">{displayMessage}</p>
+          <p className="text-gray-500 text-sm mt-1">{t('Common.pleaseWait')}</p>
         </div>
 
         {/* プログレスバー風エフェクト */}

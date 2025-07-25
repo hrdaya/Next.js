@@ -37,32 +37,20 @@
  */
 
 import { ForbiddenPage } from '@/features/errors/components/ForbiddenPage';
+import { getServerTranslation } from '@/lib/i18n/server';
 import type { Metadata } from 'next';
 
-/**
- * 403 Forbiddenページのメタデータ設定
- *
- * 認可エラーページのSEOとブラウザ表示用メタデータを定義します。
- * エラーページとして適切な情報を設定し、検索エンジンでのインデックス対象外とします。
- *
- * 設定項目：
- * - title: HTTPステータスコードを含む明確なタイトル
- * - description: ユーザーが理解しやすいアクセス拒否の説明
- * - 将来的な拡張: robots（noindex, nofollow推奨）、canonical等
- *
- * SEO考慮：
- * - エラーページは通常検索結果に表示されるべきではない
- * - robots.txtまたはmetaタグでnoindexを設定することを推奨
- * - 正確なHTTPステータスコード（403）の明示
- *
- * 国際化対応：
- * 現在は英語で設定されているが、将来的にはi18n対応が可能
- * ブラウザの言語設定に応じた動的メタデータ生成も検討可能
- */
-export const metadata: Metadata = {
-  title: '403 - Access Forbidden', // HTTPステータス明示でユーザーと開発者双方に分かりやすく
-  description: 'You do not have permission to access this resource.', // 明確で非技術的な説明
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const title = await getServerTranslation('errors:forbidden.title');
+  const description = await getServerTranslation(
+    'errors:forbidden.description'
+  );
+
+  return {
+    title: title,
+    description: description,
+  };
+}
 
 /**
  * 403 Forbiddenページのメインコンポーネント
