@@ -24,11 +24,9 @@
     "i18next-fs-backend": "^2.4.0",
     "jsonwebtoken": "^9.0.2",
     "next": "^15.3.5",
-    "next-auth": "^4.24.11",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-i18next": "^14.1.0",
-    "zod": "^4.0.10"
+    "react-i18next": "^14.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

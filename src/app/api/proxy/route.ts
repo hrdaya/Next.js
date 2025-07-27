@@ -252,7 +252,7 @@ async function handleRequest(request: NextRequest) {
         newCookie = newCookie.replace(/Domain=[^;]+;?/i, '');
 
         // パス属性を調整 (例: ルート '/' に設定)
-        newCookie = newCookie.replace(/Path=[^;]+;?/i, 'Path=/');
+        newCookie = newCookie.replace(/Path=[^;]+;?/i, 'Path=/;');
 
         // 開発環境の場合、Secure属性を削除
         if (process.env.NODE_ENV !== 'production') {

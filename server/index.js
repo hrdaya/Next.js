@@ -8,11 +8,8 @@ const PORT = parseURL.port || 8000;
 
 // Expressインスタンスを生成する
 const app = express();
-const router = Router();
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/api/v1', router);
 
 // ルートハンドラーを定義する
 app.get('/', (req, res) => {
@@ -23,6 +20,9 @@ app.get('/', (req, res) => {
 });
 
 // APIエンドポイントのハンドラーを定義する
+const router = Router();
+app.use('/api/v1', router);
+
 router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'ok',

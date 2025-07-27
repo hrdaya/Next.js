@@ -8,7 +8,6 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 
 ## TODO
 
-- [ ] ログインできるようにする
 - [ ] 各種README.mdの書き換え
 - [ ] src/utils/serverApiProxy.tsのエラー時の画面表示を精査
 - [ ] 各種レスポンスの内容の確認
