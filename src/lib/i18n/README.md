@@ -21,7 +21,7 @@ src/lib/i18n/
 ├── server.ts           # サーバーサイドi18n設定
 ├── resources.ts        # 共通翻訳リソース定義
 ├── languages.ts        # サポート言語の定義とユーティリティ
-├── font-settings.ts    # ✨ 言語ごとのフォント設定（NEW!）
+├── font-settings.ts    # ✨ 言語ごとのフォント設定
 ├── I18nProvider.tsx    # React国際化プロバイダー
 └── README.md           # このファイル
 
@@ -115,7 +115,29 @@ export const languagesConfig: LanguageConfig[] = [
 ];
 ```
 
-### ステップ3: フォント設定の確認と追加
+### ステップ3: i18n設定を更新
+
+`src/lib/i18n/resources.ts` ファイルの `commonResources` オブジェクトに新しい言語のリソースを追加します：
+
+```typescript
+// 翻訳ファイルのインポート
+import koTranslations from '@/locales/ko/common.json';
+import koAuth from '@/locales/ko/auth.json';
+import koDashboard from '@/locales/ko/dashboard.json';
+import koErrors from '@/locales/ko/errors.json';
+
+const resources = {
+  // ...existing languages...
+  ko: {
+    common: koTranslations,
+    auth: koAuth,
+    dashboard: koDashboard,
+    errors: koErrors,
+  },
+};
+```
+
+### ステップ4: フォント設定の確認と追加
 
 `src/lib/i18n/font-settings.ts`を開き、新しい言語に対応するフォントが設定されているか確認します。
 
@@ -164,7 +186,7 @@ module.exports = {
 };
 ```
 
-### ステップ4: アプリケーションの再起動
+### ステップ5: アプリケーションの再起動
 
 設定ファイルの変更を反映させるため、開発サーバーを再起動してください。
 
@@ -173,3 +195,90 @@ pnpm dev
 ```
 
 以上の手順で、新しい言語がアプリケーション全体（翻訳、フォント切り替え、言語選択UI）に自動的に統合されます。
+
+## 言語切り替えコンポーネントの使用方法
+
+### 基本的な使用
+
+```tsx
+import { LanguageSelector } from '@/components/molecules';
+
+function MyComponent() {
+  return (
+    <LanguageSelector />
+  );
+}
+```
+
+### カスタマイズ
+
+```tsx
+<LanguageSelector 
+  size="md"              // 'sm' | 'md' | 'lg'
+  variant="compact"      // 'default' | 'compact' | 'icon-only'
+  disabled={isLoading}   // 無効状態
+  className="custom-class" // カスタムCSSクラス
+/>
+```
+
+## 表示バリエーション
+
+### Default
+
+完全な言語名とアイコンを表示する標準バージョン
+
+### Compact
+
+国旗と言語コードを表示するコンパクトバージョン
+
+### Icon Only
+
+国旗のみを表示する最小バージョン
+
+## RTL言語のサポート
+
+アラビア語など右から左に書く言語もサポート可能です：
+
+```typescript
+{
+  code: 'ar',
+  name: 'العربية',
+  englishName: 'Arabic',
+  flag: '🇸🇦',
+  isRTL: true,  // RTL言語であることを示すフラグ
+},
+```
+
+## アクセシビリティ
+
+- キーボードナビゲーション対応
+- スクリーンリーダー対応
+- 適切なARIAラベル設定
+- フォーカス管理
+
+## 実装済みの場所
+
+- サインインページ (`src/features/auth/components/SignIn.tsx`)
+- その他のページでも同様に使用可能
+
+## ベストプラクティス
+
+1. **翻訳の品質**: ネイティブスピーカーによる翻訳確認を推奨
+2. **一貫性**: すべての翻訳ファイルで同じキー構造を維持
+3. **テスト**: 新しい言語を追加したら全機能をテスト
+4. **文化的配慮**: 色、画像、レイアウトが各文化に適切か確認
+
+## トラブルシューティング
+
+### 新しい言語が表示されない
+
+1. `languages.ts` に正しく追加されているか確認
+2. 翻訳ファイルが正しい場所にあるか確認
+3. `resources.ts` に新しい言語のリソースが追加されているか確認
+4. ビルドエラーがないか確認
+
+### 翻訳が表示されない
+
+1. 翻訳ファイルのJSON構造が正しいか確認
+2. 翻訳キーが正しく参照されているか確認
+3. ブラウザの開発者ツールでエラーを確認

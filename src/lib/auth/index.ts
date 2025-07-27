@@ -13,7 +13,7 @@
  * 使用方法:
  * ```tsx
  * // 必要な機能のみをインポート
- * import { AuthRequired, signOut, verifyTokenLocally } from '@/lib/auth';
+ * import { AuthRequired, verifyTokenLocally, getJwtFromCookie } from '@/lib/auth';
  *
  * // または特定モジュールから直接インポート
  * import { isJWTValid } from '@/lib/auth/jwt';
@@ -27,73 +27,31 @@
  */
 export { default as AuthRequired } from './AuthRequired';
 
-// ===== セッション管理 =====
+// ===== JWT トークン操作と検証システム =====
 /**
- * HTTPOnlyクッキーからのJWTトークン取得と管理
- * - getJwtCookie: サーバーサイドでのセッション取得
- * - setJwtCookie: セキュアなJWTクッキーの設定
- * - clearJwtCookie: JWTクッキーの削除
- */
-export {
-  getJwtCookie,
-  setJwtCookie,
-  clearJwtCookie,
-  secureJwtResponse,
-  setJwtAuthHeader,
-  tryRefreshJwt,
-} from './jwtCookie';
-
-// ===== JWT トークン操作 =====
-/**
- * JWTトークンのローカル検証とデータ抽出
- * 外部サーバーへの問い合わせなしで高速な検証を提供
+ * JWTトークンの操作、ローカル検証、および関連型定義
  *
  * 主要関数:
+ * - decodeJWT: JWTペイロードのデコード
  * - isJWTValid: トークンの有効性チェック
  * - isJWTExpired: 有効期限チェック
  * - getJWTExpirationTime: 残り有効時間の取得
  * - getJWTUserInfo: ユーザー情報の抽出
- * - decodeJWT: JWTペイロードのデコード
+ * - getJwtFromCookie: HTTPオンリーCookieからJWTを取得
+ * - verifyTokenLocally: 高速なローカル検証（有効期限のみ）
  *
  * 型定義:
  * - JWTPayload: JWTペイロードの型定義
+ * - TokenVerificationResult: 検証結果の標準的な型定義
  */
 export {
+  decodeJWT,
   isJWTValid,
   isJWTExpired,
   getJWTExpirationTime,
   getJWTUserInfo,
-  decodeJWT,
-  type JWTPayload,
-} from './jwt';
-
-// ===== トークン検証システム =====
-/**
- * JWTトークンのローカル検証機能
- *
- * verifyTokenLocally:
- * - 高速なローカル検証（有効期限のみ）
- * - SSR/CSR両方で使用可能
- * - パフォーマンス重視の場面で使用
- * - 外部サーバーへの問い合わせなしで即座に結果を返す
- *
- * TokenVerificationResult:
- * - 検証結果の標準的な型定義
- * - isValid, isExpired, user情報を含む
- */
-export {
+  getJwtFromCookie,
   verifyTokenLocally,
+  type JWTPayload,
   type TokenVerificationResult,
 } from './jwt';
-
-// ===== ユーティリティ関数 =====
-/**
- * 認証関連の便利関数
- *
- * signOut:
- * - HTTPOnlyクッキーの安全な削除
- * - サインインページへの自動リダイレクト
- * - エラー耐性のあるログアウト処理
- */
-// ログアウト機能（サーバーアクション）
-// ログアウト処理は src/features/auth/actions/SignOut.ts のサーバーアクションを使用

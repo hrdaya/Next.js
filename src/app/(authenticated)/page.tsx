@@ -1,17 +1,18 @@
 import { LogoutButton } from '@/features/auth/components';
 import { DashboardPage } from '@/features/dashboard/components';
-import { verifyTokenLocally } from '@/lib/auth/jwt';
-import { getJwtCookie } from '@/lib/auth/jwtCookie';
+import { getJwtFromCookie, verifyTokenLocally } from '@/lib/auth/jwt';
+import type { TokenVerificationResult } from '@/lib/auth/jwt';
 import { getServerTranslation } from '@/lib/i18n/server';
 
 export default async function Page() {
   // サーバーサイドでユーザー情報を取得
-  const jwt = await getJwtCookie();
+  const jwt = await getJwtFromCookie();
   let user = null;
+  let verificationResult: TokenVerificationResult | null = null;
 
   if (jwt) {
     try {
-      const verificationResult = verifyTokenLocally(jwt);
+      verificationResult = verifyTokenLocally(jwt);
       user = verificationResult.user;
     } catch (error) {
       console.error('Failed to get user info:', error);
@@ -31,7 +32,13 @@ export default async function Page() {
         <h1 className="text-xl font-bold">{welcomeText}</h1>
         <LogoutButton logoutText={logoutText} />
       </div>
-      <DashboardPage />
+      <DashboardPage
+        {...(verificationResult ?? {
+          isValid: false,
+          isExpired: true,
+          user: undefined,
+        })}
+      />
     </div>
   );
 }

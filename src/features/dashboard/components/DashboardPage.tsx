@@ -2,13 +2,12 @@
 
 import { Button } from '@/components/atoms';
 import { Header, LanguageSelector } from '@/components/molecules';
-import { useSession } from 'next-auth/react';
+import type { TokenVerificationResult } from '@/lib/auth/jwt';
 import { forbidden, notFound, unauthorized } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 
-export function DashboardPage() {
+export function DashboardPage({ user }: TokenVerificationResult) {
   const { t } = useTranslation('dashboard');
-  const { data: session } = useSession();
 
   const handleViewAnalytics = () => {
     console.log('View analytics clicked');
@@ -33,9 +32,9 @@ export function DashboardPage() {
             <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
               {t('welcome')}
             </h1>
-            {session && (
+            {user && (
               <p className="mt-4 text-lg text-gray-600">
-                {t('welcomeBack', { name: session.user?.email })}
+                {t('welcomeBack', { name: user?.email })}
               </p>
             )}
           </div>

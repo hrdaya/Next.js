@@ -15,8 +15,12 @@
     "Noto",
     "officedocument",
     "openxmlformats",
+    "Qiita",
     "spreadsheetml",
     "storysource",
+    "Symfony",
+    "turbopack",
+    "Tymon",
     "Vitest",
     "winget"
   ],

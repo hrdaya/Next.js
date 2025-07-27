@@ -1,16 +1,11 @@
 /**
  * JWT関連のユーティリティ関数
- * ローカルでのJWT有効期限チェック機能を提供
- *
- * このモジュールは、JWTトークンの検証を2つの方法で提供します:
- * 1. ローカル検証: 有効期限のみをチェック（高速、オフライン対応）
- * 2. サーバー検証: 外部認証サーバーで完全な検証（安全、ネットワーク必要）
- *
- * パフォーマンス考慮事項:
- * - ローカル検証は即座に結果を返すため、ページレンダリングを高速化
- * - サーバー検証は完全な署名検証を行うが、ネットワーク遅延が発生
- * - 通常はローカル検証を使用し、セキュリティが重要な操作ではサーバー検証を使用
+ * ローカルでのJWT有効期限チェック機能等を提供
  */
+
+import { cookies } from 'next/headers';
+
+import { JWT_COOKIE_NAME } from '@/constants';
 
 /**
  * JWT payload の型定義
@@ -49,6 +44,7 @@ export interface TokenVerificationResult {
 
 /**
  * Base64URLエンコードされた文字列をデコードします
+ *
  * @param base64url - Base64URLエンコードされた文字列
  * @returns デコードされた文字列
  */
@@ -71,6 +67,7 @@ function base64UrlDecode(base64url: string): string {
 
 /**
  * JWTトークンをデコードしてペイロードを取得します
+ *
  * @param token - JWTトークン
  * @returns デコードされたペイロード
  * @throws JWT形式が無効な場合はエラーをスロー
@@ -92,6 +89,7 @@ export function decodeJWT(token: string): JWTPayload {
 
 /**
  * JWTトークンの有効期限をチェックします
+ *
  * @param token - 検証するJWTトークン
  * @returns トークンが有効期限内かどうか
  */
@@ -110,6 +108,7 @@ export function isJWTValid(token: string): boolean {
 
 /**
  * JWTトークンが期限切れかどうかをチェックします
+ *
  * @param token - 検証するJWTトークン
  * @returns トークンが期限切れかどうか
  */
@@ -128,6 +127,7 @@ export function isJWTExpired(token: string): boolean {
 
 /**
  * JWTトークンから有効期限の残り時間（秒）を取得します
+ *
  * @param token - JWTトークン
  * @returns 有効期限までの残り時間（秒）、無効な場合は0
  */
@@ -145,6 +145,7 @@ export function getJWTExpirationTime(token: string): number {
 
 /**
  * JWTトークンからユーザー情報を取得します
+ *
  * @param token - JWTトークン
  * @returns ユーザー情報、無効な場合はnull
  */
@@ -220,5 +221,45 @@ export function verifyTokenLocally(token: string): TokenVerificationResult {
     console.error('Local token verification error:', error);
     // エラーが発生した場合は期限切れとして扱う（安全側に倒す）
     return { isValid: false, isExpired: true };
+  }
+}
+
+/**
+ * サーバーサイドでJWTトークンを取得するヘルパー関数
+ *
+ * この関数は、Next.jsのサーバーサイドでhttpOnlyクッキーからJWTトークンを取得します。
+ * クライアントサイドでは直接アクセスできないため、セキュリティが強化されます。
+ *
+ * @returns JWTトークン文字列、存在しない場合はnull
+ */
+export async function getJwtFromCookie(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(JWT_COOKIE_NAME)?.value || null;
+}
+
+/**
+ * サーバーサイドでJWTクッキーを削除するヘルパー関数
+ *
+ * この関数は、Next.jsのサーバーサイドでhttpOnlyクッキーからJWTトークンを削除します。
+ * クライアントサイドでは直接アクセスできないため、セキュリティが強化されます。
+ *
+ * @throws エラーが発生した場合はログを出力するが、処理は継続
+ */
+export async function clearJwtCookie(): Promise<void> {
+  try {
+    const cookieStore = await cookies();
+
+    // JWTクッキーを削除
+    // expires: new Date(0) で過去の日時を設定してクッキーを期限切れにする
+    cookieStore.set(JWT_COOKIE_NAME, '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      expires: new Date(0), // 即座に期限切れ
+    });
+  } catch (error) {
+    console.error('Failed to clear JWT cookie:', error);
+    // クッキー削除エラーでもログアウト処理は継続
   }
 }

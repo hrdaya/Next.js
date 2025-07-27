@@ -3,19 +3,15 @@
  *
  * このファイルは、フロントエンドとバックエンドAPI間の安全な通信を仲介するプロキシサーバーを実装しています。
  * 主な機能：
- * - セキュアなJWT管理（httpOnlyクッキー ⇔ Bearerトークン変換）
- * - 自動JWTリフレッシュ機能（401エラー時の自動再試行）
+ * - セキュアなJWT管理（httpOnlyクッキー ⇒ Bearerトークン変換）
+ * - プロキシによるCORS問題の解決
  * - 国際化対応（X-Languageヘッダー自動付与）
- * - CORS問題の解決
  * - 統一されたエラーハンドリング
  * - クライアントサイドからのJWT隠蔽
  *
  * セキュリティ特徴：
  * - httpOnlyクッキーによるXSS攻撃防止
  * - JWT情報のクライアントサイド隠蔽
- * - SameSite=Strictによるセッション保護
- * - プロダクション環境でのSecure Cookie強制
- * - 自動トークンリフレッシュによるセッション継続
  *
  * @route POST /api/proxy (supports multiple HTTP methods via method parameter)
  * @security JWT management, httpOnly cookies, CORS handling, automatic token refresh
@@ -23,11 +19,7 @@
  */
 
 import { BACKEND_API_URL } from '@/constants';
-import {
-  secureJwtResponse,
-  setJwtAuthHeader,
-  tryRefreshJwt,
-} from '@/lib/auth/jwtCookie';
+import { getJwtFromCookie } from '@/lib/auth/jwt';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
@@ -37,6 +29,16 @@ import { NextResponse } from 'next/server';
  * - ファイルアップロードの場合は 'multipart/form-data'
  */
 const defaultContentsType = 'application/json';
+
+/**
+ * バックエンドAPIへのプロキシリクエストを処理するエンドポイント（POSTのリクエストのみ受け付け）
+ *
+ * @param request - Next.jsのリクエストオブジェクト
+ * @returns NextResponse - プロキシされたレスポンス
+ */
+export async function POST(request: NextRequest) {
+  return handleRequest(request);
+}
 
 /**
  * GETリクエストのbodyをクエリストリングに変換してURLに追加
@@ -97,44 +99,6 @@ function detectLanguage(
 }
 
 /**
- * バックエンドレスポンスを処理してクライアント向けレスポンスを作成
- * JWTがレスポンスに含まれる場合はhttpOnlyクッキーに保存し、ヘッダーから削除
- *
- * @param backendResponse - バックエンドからのレスポンス
- * @param isGetAccessTokenUrl - アクセストークン取得URLかどうかのフラグ
- * @returns 処理済みのクライアントレスポンス
- */
-async function processBackendResponse(
-  backendResponse: Response,
-  isGetAccessTokenUrl: boolean
-): Promise<NextResponse> {
-  // JWT処理を実行：JWTがあればhttpOnlyクッキーに保存し、ヘッダーから削除
-  // レスポンスオブジェクトは参照渡しのため直接変更される
-  await secureJwtResponse(backendResponse, isGetAccessTokenUrl);
-
-  // バックエンドからのレスポンスがapplication/jsonの場合
-  if (
-    backendResponse.headers.get('Content-Type')?.includes(defaultContentsType)
-  ) {
-    // JSON解析（失敗時は空オブジェクトを返す）
-    const responseData = await backendResponse.json().catch(() => ({}));
-
-    // クライアント向けJSONレスポンスの作成
-    return NextResponse.json(responseData, {
-      status: backendResponse.status,
-      statusText: backendResponse.statusText,
-    });
-  }
-
-  // JSON以外のレスポンス（HTML、画像等）の場合はそのまま返す
-  return new NextResponse(backendResponse.body, {
-    status: backendResponse.status,
-    statusText: backendResponse.statusText,
-    headers: backendResponse.headers,
-  });
-}
-
-/**
  * リクエストパラメータを解析・抽出する
  *
  * @param request - NextRequestオブジェクト
@@ -149,20 +113,29 @@ async function parseRequestParams(request: NextRequest) {
   let body: string | FormData | undefined;
 
   if (contentType === defaultContentsType) {
-    const json = await request.json();
+    // JSONリクエストの場合
+    const json = await request.json().catch(() => ({}));
 
-    url = json.url;
-    method = json.method || 'POST';
-    language = json.language;
+    url = json?.url;
+    method = json?.method || 'POST';
+    language = json?.language;
+
+    const requestMethod = method.toUpperCase();
 
     // GETメソッドの場合はbodyをクエリストリングに変換してURLに追加
-    if (method.toUpperCase() === 'GET' && json.body) {
-      url = appendQueryStringToUrl(url, json.body as Record<string, unknown>);
-      body = undefined;
-    } else {
-      body = JSON.stringify(json.body);
-    }
+    url =
+      requestMethod === 'GET'
+        ? appendQueryStringToUrl(url, json.body as Record<string, unknown>)
+        : url;
+
+    // POST/PUT/DELETEメソッドの場合はbodyをJSON文字列に変換
+    // bodyはGET/HEAD以外のメソッドでのみ使用
+    body =
+      requestMethod === 'GET' || requestMethod === 'HEAD'
+        ? undefined
+        : JSON.stringify(json.body);
   } else {
+    // フォームデータリクエストの場合（ファイルのアップロード）
     const formData = await request.formData();
 
     url = formData.get('proxy_url') as string;
@@ -191,13 +164,11 @@ async function parseRequestParams(request: NextRequest) {
  * 2. httpOnlyクッキーからJWTを取得
  * 3. 国際化対応：現在選択されている言語をX-Languageヘッダーに設定
  * 4. バックエンドAPIへリクエスト送信（JWT付き）
- * 5. 401エラー時：JWTリフレッシュを試行し、成功時に再リクエスト
- * 6. レスポンス処理：新しいJWTがあればhttpOnlyクッキーに保存
- * 7. セキュリティ：Authorizationヘッダーをクライアントレスポンスから削除
+ * 5. レスポンス処理：クッキーのドメインを削除して、Next.jsのレスポンスに設定
+ * 6. レスポンスをクライアントに返却
  *
  * セキュリティメカニズム：
- * - JWT管理：httpOnlyクッキー（読み取り専用）⇔ Bearerトークン（バックエンド用）変換
- * - 自動トークンリフレッシュ：401エラー検知時の自動JWT更新とリトライ
+ * - JWT管理：httpOnlyクッキー（読み取り専用）⇒ Bearerトークン（バックエンド用）に変換
  * - クライアント隠蔽：JWTや認証情報をフロントエンドJavaScriptから完全に隠蔽
  * - セッション保護：SameSite=StrictとhttpOnlyによる包括的セキュリティ
  *
@@ -209,7 +180,7 @@ async function parseRequestParams(request: NextRequest) {
  * @param request - フロントエンドからのプロキシリクエスト
  * @returns Promise<NextResponse> - プロキシされたレスポンス（JWT情報除去済み）
  */
-export async function POST(request: NextRequest) {
+async function handleRequest(request: NextRequest) {
   try {
     // リクエストパラメータの解析・抽出
     const { url, method, language, body } = await parseRequestParams(request);
@@ -219,22 +190,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // アクセストークンを取得するURLであるかどうかをチェック
-    const isGetAccessTokenUrl =
-      url.includes('/api/login') || url.includes('/api/refresh');
-
     // バックエンドリクエスト用ヘッダーの準備
     const headers: Record<string, string> = {};
 
     // application/jsonのときのみContent-Typeを追加
-    const contentType = request.headers.get('Content-Type');
+    const contentType = request.headers.get('Content-Type')?.toLowerCase();
     if (contentType === defaultContentsType) {
-      headers['Content-Type'] = defaultContentsType;
+      headers['Content-Type'] = contentType;
     }
 
-    // JWT認証トークンをヘッダーに設定
-    // httpOnlyクッキーから取得したJWTを安全にBearerヘッダーに設定
-    await setJwtAuthHeader(headers);
+    // JWTトークンをhttpOnlyクッキーから取得し、Authorizationヘッダーに設定
+    const jwt = await getJwtFromCookie();
+    if (jwt) {
+      headers.Authorization = `Bearer ${jwt}`;
+    }
 
     // 国際化対応：言語情報のX-Languageヘッダー設定
     // バックエンドAPIが適切な言語でレスポンスを返すための言語情報の送信
@@ -244,47 +213,119 @@ export async function POST(request: NextRequest) {
     }
 
     // バックエンドAPIへのリクエスト用のオプションを生成
-    const requestOptions: RequestInit = { method, headers, body };
+    const requestOptions: RequestInit = {
+      method,
+      headers,
+      body,
+      cache: 'no-store',
+    };
 
-    // バックエンドAPIの完全なURLを構築
-    const backendUrl = BACKEND_API_URL + url;
+    // リクエストをバックエンドAPIに転送
+    const laravelResponse = await fetch(
+      `${BACKEND_API_URL}${url}`,
+      requestOptions
+    );
 
-    // バックエンドAPIへのリクエスト送信
-    let backendResponse = await fetch(backendUrl, requestOptions);
+    // Next.jsのレスポンス用のヘッダーを初期化
+    const responseHeaders = new Headers();
 
-    // JWT認証エラー時の自動リフレッシュ処理
-    // 401エラーの場合、JWTリフレッシュを試行して元のリクエストを再実行
-    // これにより、ユーザーはログインし直すことなくセッションを継続できる
-    if (backendResponse.status === 401) {
-      const newJwt = await tryRefreshJwt(requestOptions);
-
-      if (newJwt) {
-        // 新しいJWTを取得した場合、元のリクエストオプションを更新
-        const retryOptions: RequestInit = {
-          ...requestOptions,
-          headers: {
-            ...requestOptions.headers,
-            Authorization: `Bearer ${newJwt}`,
-          },
-        };
-
-        // リフレッシュ成功後、元のリクエストを再実行
-        backendResponse = await fetch(backendUrl, retryOptions);
+    // Laravel からのレスポンスヘッダーをすべてコピー
+    // Set-Cookie 以外のヘッダーは基本そのまま転送
+    for (const [key, value] of laravelResponse.headers.entries()) {
+      if (key.toLowerCase() !== 'set-cookie') {
+        // Set-Cookie は後で特別に処理するため除外
+        responseHeaders.set(key, value);
       }
     }
 
-    // バックエンドレスポンスを処理してクライアント向けレスポンスを作成
-    return await processBackendResponse(backendResponse, isGetAccessTokenUrl);
+    // LaravelのSet-Cookieヘッダーを取得
+    const setCookieHeaders = laravelResponse.headers.getSetCookie();
+
+    // Set-Cookieヘッダーが存在する場合、Next.jsのレスポンスに追加
+    // LaravelのSet-Cookieヘッダーはドメイン属性が含まれるため、Next.jsのドメインに合わせて調整
+    if (setCookieHeaders && setCookieHeaders.length > 0) {
+      // Laravel から返された Set-Cookie ヘッダーを処理
+      const newSetCookieHeaders = setCookieHeaders.map((cookieString) => {
+        let newCookie = cookieString;
+
+        // ドメイン属性を削除または Next.js のドメインに書き換える
+        newCookie = newCookie.replace(/Domain=[^;]+;?/i, '');
+
+        // パス属性を調整 (例: ルート '/' に設定)
+        newCookie = newCookie.replace(/Path=[^;]+;?/i, 'Path=/');
+
+        // 開発環境の場合、Secure属性を削除
+        if (process.env.NODE_ENV !== 'production') {
+          newCookie = newCookie.replace(/; Secure/i, '');
+        }
+
+        return newCookie;
+      });
+
+      // 処理した Cookie ヘッダーを Next.js のレスポンスに設定
+      // NextResponse.json や NextResponse.text を使う場合、headers を明示的に設定
+      for (const cookie of newSetCookieHeaders) {
+        responseHeaders.append('Set-Cookie', cookie);
+      }
+    }
+
+    // バックエンドからのレスポンスがapplication/jsonの場合
+    if (
+      laravelResponse.headers
+        .get('Content-Type')
+        ?.toLowerCase()
+        .includes(defaultContentsType)
+    ) {
+      // JSON解析（失敗時は空オブジェクトを返す）
+      const responseData = await laravelResponse.json().catch(() => ({}));
+
+      // クライアント向けJSONレスポンスの作成
+      return NextResponse.json(responseData, {
+        status: laravelResponse.status,
+        statusText: laravelResponse.statusText,
+        headers: responseHeaders,
+      });
+    }
+
+    // application/json以外の場合はファイルのダウンロード
+
+    // Content-Length を設定しない (ストリーミングの場合)
+    // ただし、一部のクライアントは Content-Length を期待するため注意が必要
+    responseHeaders.delete('Content-Length');
+
+    // カスタムの ReadableStream を作成し、それを NextResponse に渡す
+    // そして、元の Laravel レスポンスのボディをこのカスタムストリームにパイプする
+    const customStream = new ReadableStream({
+      async start(controller) {
+        // Laravel のレスポンスボディをチャンクごとに読み込み、カスタムストリームにエンキュー
+        const reader = laravelResponse.body?.getReader();
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          controller.enqueue(value);
+        }
+
+        controller.close();
+      },
+    });
+
+    return new NextResponse(customStream, {
+      status: laravelResponse.status,
+      statusText: laravelResponse.statusText,
+      headers: responseHeaders,
+    });
   } catch (error) {
     // エラーハンドリング
     // ネットワークエラー、JSONパースエラー、バックエンド接続エラー等の包括的処理
     // セキュリティのため詳細なエラー情報は隠蔽し、ログにのみ出力
-    console.error('Backend proxy error:', error);
+    console.error('Proxy request failed:', error);
 
     // 統一されたエラーレスポンス（500 Internal Server Error）
     // 攻撃者に内部システム情報を漏洩させないよう一般的なメッセージを返す
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { message: 'Internal Server Error' },
       { status: 500 }
     );
   }

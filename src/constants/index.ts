@@ -4,11 +4,16 @@ export const APP_CONFIG = {
   description: 'A modern web application built with Next.js',
 } as const;
 
+// バックエンドAPIのURL
 export const BACKEND_API_URL =
-  process.env.BACKEND_API_URL || 'http://localhost:8000';
+  process.env.BACKEND_API_URL || 'http://localhost:8000/api/v1';
 
+// Next.jsのAPIベースURL
 export const NEXT_PUBLIC_API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
+
+// JWTクッキーの名前
+export const JWT_COOKIE_NAME = 'jwt_token';
 
 export const ROUTES = {
   HOME: '/',

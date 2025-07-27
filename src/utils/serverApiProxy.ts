@@ -11,6 +11,50 @@ import type { ResponseBase } from '@/types/response';
 import { forbidden, notFound, unauthorized } from 'next/navigation';
 
 /**
+ * サーバーコンポーネントでのGETリクエスト（データ取得）
+ */
+export async function getServerData<T, V = unknown>(
+  url: string,
+  body?: V,
+  headers?: Record<string, string>
+): Promise<ResponseBase<T>> {
+  return fetchViaProxy<T, V>(url, 'GET', body, headers);
+}
+
+/**
+ * サーバーコンポーネントでのPOSTリクエスト（データ作成）
+ */
+export async function postServerData<T, V = unknown>(
+  url: string,
+  body?: V,
+  headers?: Record<string, string>
+): Promise<ResponseBase<T>> {
+  return fetchViaProxy<T, V>(url, 'POST', body, headers);
+}
+
+/**
+ * サーバーコンポーネントでのPUTリクエスト（データ更新）
+ */
+export async function putServerData<T, V = unknown>(
+  url: string,
+  body?: V,
+  headers?: Record<string, string>
+): Promise<ResponseBase<T>> {
+  return fetchViaProxy<T, V>(url, 'PUT', body, headers);
+}
+
+/**
+ * サーバーコンポーネントでのDELETEリクエスト（データ削除）
+ */
+export async function deleteServerData<T, V = unknown>(
+  url: string,
+  body?: V,
+  headers?: Record<string, string>
+): Promise<ResponseBase<T>> {
+  return fetchViaProxy<T, V>(url, 'DELETE', body, headers);
+}
+
+/**
  * サーバーコンポーネントからプロキシ経由でバックエンドAPIにリクエストを送信
  * JWTリフレッシュとクッキー管理が正常に動作する
  *
@@ -135,26 +179,4 @@ async function fetchViaProxy<T, V = unknown>(
       statusText: 'Network Error',
     };
   }
-}
-
-/**
- * サーバーコンポーネントでのGETリクエスト（データ取得）
- */
-export async function getServerData<T, V = unknown>(
-  url: string,
-  body?: V,
-  headers?: Record<string, string>
-): Promise<ResponseBase<T>> {
-  return fetchViaProxy<T, V>(url, 'GET', body, headers);
-}
-
-/**
- * サーバーコンポーネントでのPOSTリクエスト（データ作成）
- */
-export async function postServerData<T, V = unknown>(
-  url: string,
-  body?: V,
-  headers?: Record<string, string>
-): Promise<ResponseBase<T>> {
-  return fetchViaProxy<T, V>(url, 'POST', body, headers);
 }

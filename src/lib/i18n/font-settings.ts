@@ -1,5 +1,3 @@
-'use client';
-
 import {
   Inter,
   Noto_Sans_JP,
