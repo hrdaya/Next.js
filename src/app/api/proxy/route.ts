@@ -20,8 +20,10 @@
 
 import { BACKEND_API_URL } from '@/constants';
 import { getJwtFromCookie } from '@/lib/auth/jwt';
+import { isProd } from '@/utils/env';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import qs from 'qs';
 
 /**
  * デフォルトのコンテンツタイプ
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GETリクエストのbodyをクエリストリングに変換してURLに追加
+ * GETリクエストのbodyをクエリストリングに変換してURLに追加（ネスト・配列対応）
  *
  * @param url - 元のURL
  * @param body - リクエストボディ（オブジェクト）
@@ -55,21 +57,40 @@ function appendQueryStringToUrl(
     return url;
   }
 
-  const queryParams = new URLSearchParams();
-
-  // for...ofを使用してオブジェクトのエントリを処理
-  for (const [key, value] of Object.entries(body)) {
-    if (value !== null && value !== undefined) {
-      queryParams.append(key, String(value));
+  // 真偽値は0/1に変換するため、再帰的に変換
+  function convertBools(obj: unknown): unknown {
+    if (Array.isArray(obj)) {
+      // 配列の場合、各要素を再帰的に変換
+      return obj.map(convertBools);
     }
+
+    if (obj && typeof obj === 'object') {
+      // オブジェクトの場合、各キーの値を再帰的に変換
+      return Object.fromEntries(
+        Object.entries(obj as Record<string, unknown>).map(([k, v]) => [
+          k,
+          convertBools(v),
+        ])
+      );
+    }
+
+    if (typeof obj === 'boolean') {
+      // 真偽値を0/1に変換
+      return obj ? 1 : 0;
+    }
+
+    return obj;
   }
 
-  const queryString = queryParams.toString();
-  if (queryString) {
-    return url + (url.includes('?') ? '&' : '?') + queryString;
-  }
+  // 真偽値を0/1に変換したオブジェクトをクエリストリングに変換
+  const queryString = qs.stringify(convertBools(body), {
+    arrayFormat: 'brackets',
+  });
 
-  return url;
+  // クエリストリングが空でない場合、URLに追加
+  return queryString
+    ? url + (url.includes('?') ? '&' : '?') + queryString
+    : url;
 }
 
 /**
@@ -254,10 +275,20 @@ async function handleRequest(request: NextRequest) {
         // パス属性を調整 (例: ルート '/' に設定)
         newCookie = newCookie.replace(/Path=[^;]+;?/i, 'Path=/;');
 
-        // 開発環境の場合、Secure属性を削除
-        if (process.env.NODE_ENV !== 'production') {
+        // Secure 属性の処理
+        if (isProd) {
+          // 本番環境では Secure 属性を必ず付与
+          if (!/;\s*Secure/i.test(newCookie)) {
+            // Secure が無ければ末尾に追加
+            newCookie = newCookie.replace(/;?$/, '; Secure');
+          }
+        } else {
+          // 開発・テスト環境では Secure 属性を削除
           newCookie = newCookie.replace(/; Secure/i, '');
         }
+
+        // 末尾のセミコロンを削除（属性区切り以外で不要な場合）
+        newCookie = newCookie.replace(/;+$/, '');
 
         return newCookie;
       });
@@ -288,7 +319,6 @@ async function handleRequest(request: NextRequest) {
     }
 
     // application/json以外の場合はファイルのダウンロード
-
     // Content-Length を設定しない (ストリーミングの場合)
     // ただし、一部のクライアントは Content-Length を期待するため注意が必要
     responseHeaders.delete('Content-Length');
