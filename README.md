@@ -8,8 +8,8 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 
 ## TODO
 
-- [ ] 各種README.mdの書き換え
 - [ ] src/utils/serverApiProxy.tsのエラー時の画面表示を精査
+  - 500と503の切り分け等
 - [ ] 各種レスポンスの内容の確認
   - [ ] ページ初期読み込み
   - [ ] サーバーアクション
@@ -22,7 +22,6 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 - [技術スタック](#技術スタック)
 - [主要機能](#主要機能)
 - [フォルダ構成](#フォルダ構成)
-- [使用例](#使用例)
 - [セットアップ](#セットアップ)
 - [開発](#開発)
 - [AWS ECS デプロイ](#aws-ecs-デプロイ)
@@ -43,31 +42,32 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 
 ### 認証システム
 
-- **JWT ベースの認証** - httpOnly Cookie による安全なトークン管理
-- **自動トークンリフレッシュ** - 401エラー検知時の自動JWT更新機能
+- **JWT ベースの認証** - httpOnly Cookie による安全なトークン管理（バックエンドサーバー側で実装）
+- **自動トークンリフレッシュ** - 401エラー検知時の自動JWT更新機能（バックエンドサーバー側で実装）
 - **Route Groups** - `(authenticated)` フォルダによる認証必須ページの自動保護
-- **サーバーサイド認証** - Server Components での初期認証チェック
-- **ローカル検証** - 外部サーバーへの問い合わせなしでの高速JWT検証
 
 ### API通信
 
 - **serverApiProxy** - Server Components 専用のプロキシ経由API通信ユーティリティ
-  - プロキシルート（`/api/proxy`）経由でのバックエンド通信
-  - JWTトークンの自動管理（httpOnlyクッキー⇔Bearerトークン変換）
-  - X-Language ヘッダーの自動付与（Accept-Language から検出）
+  - プロキシAPI（`/api/proxy`）経由でのバックエンド通信
   - GET/POST/PUT/DELETE全メソッド対応
-  - 自動トークンリフレッシュ機能
-  - エラーハンドリングの統一（401/403/404の自動ハンドリング）
+  - エラーハンドリングの統一
   - 国際化対応エラーメッセージ
   - TypeScript型安全性
-  - Next.js `cache: 'no-store'` でリアルタイムデータ取得
 - **useApiRequest** - Client Components 用のAPI通信フック
   - プロキシAPI（`/api/proxy`）経由でのバックエンド通信
-  - 共通エラーハンドリング（国際化対応）
-  - X-Language ヘッダーの自動付与（現在の言語設定から）
   - HTTP メソッド別の専用関数（get/create/update/del/upload/download）
+  - エラーハンドリングの統一
+  - 国際化対応エラーメッセージ
   - ファイルアップロード・ダウンロード対応
   - TypeScript型安全性
+
+#### プロキシAPI（`/api/proxy`）
+
+- JWTトークンの自動付与（httpOnlyクッキー⇒Bearerトークン変換）
+- X-Language ヘッダーの自動付与（現在の言語設定やAccept-Language から検出）
+- Next.js `cache: 'no-store'` でリアルタイムデータ取得
+- バックエンドサーバーの隠ぺい
 
 ### ユーティリティ関数
 
@@ -128,313 +128,6 @@ Next.jsでSSRを使用し、AWS ECSで運用するプロジェクトのボイラ
 └── 設定ファイル類
 ```
 
-## 使用例
-
-### Server Components での API データ取得
-
-```typescript
-// src/app/(authenticated)/users/page.tsx
-import { getServerData } from '@/utils/serverApiProxy';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-export default async function UsersPage() {
-  // getServerDataでGETリクエスト（第2引数はオプション）
-  const response = await getServerData<User[]>('/api/users');
-
-  if (!response.ok) {
-    return <div>エラーが発生しました</div>;
-  }
-
-  return (
-    <div>
-      <h1>ユーザー一覧</h1>
-      {response.data?.map(user => (
-        <div key={user.id}>{user.name}</div>
-      ))}
-    </div>
-  );
-}
-```
-
-#### フィルタ付きデータ取得の例
-
-```typescript
-// src/app/(authenticated)/users/filtered/page.tsx
-import { postServerData } from '@/utils/serverApiProxy';
-
-interface UserFilter {
-  status?: 'active' | 'inactive';
-  department?: string;
-  limit?: number;
-}
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  status: 'active' | 'inactive';
-  department: string;
-}
-
-export default async function FilteredUsersPage() {
-  // POSTでフィルタ条件を送信
-  const filter: UserFilter = {
-    status: 'active',
-    department: 'engineering',
-    limit: 50
-  };
-
-  const response = await postServerData<User[]>('/api/users/search', filter);
-
-  if (!response.ok) {
-    return (
-      <div>
-        <h1>エラーが発生しました</h1>
-        <ul>
-          {response.message.map((msg, index) => (
-            <li key={index} className="text-red-600">{msg}</li>
-          ))}
-        </ul>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h1>アクティブなエンジニア一覧</h1>
-      <p>検索結果: {response.data?.length || 0}件</p>
-      {response.data?.map(user => (
-        <div key={user.id} className="border p-4 mb-2">
-          <h3>{user.name}</h3>
-          <p>Email: {user.email}</p>
-          <p>Department: {user.department}</p>
-          <span className="badge">{user.status}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
-#### Server Components での重要な注意点
-
-**プロキシ経由設計について：**
-
-- `getServerData`と`postServerData`はプロキシルート（`/api/proxy`）経由でバックエンドと通信
-- GET/POST/PUT/DELETE全メソッドをサポート
-- GETリクエストの場合、bodyパラメータはクエリストリングに自動変換
-
-**国際化とエラーハンドリング：**
-
-- Accept-Language ヘッダーから自動的に言語を検出
-- X-Language ヘッダーをバックエンドに自動送信
-- エラーメッセージは検出された言語で表示
-- 401エラー: `unauthorized()` を自動呼び出し（認証ページにリダイレクト）
-- 403エラー: `forbidden()` を自動呼び出し（403ページにリダイレクト）
-- 404エラー: `notFound()` を自動呼び出し（404ページにリダイレクト）
-- その他エラー: `response.message` 文字列にローカライズされたエラー内容が格納
-
-**SSRデータ取得の特徴：**
-
-- `cache: 'no-store'` によりリアルタイムデータを取得
-- httpOnly Cookieから自動的にJWTトークンを取得・プロキシで変換
-- Server Component内でのみ使用可能（Client Componentでは使用不可）
-
-```typescript
-// ❌ 間違った使用方法
-const response = await getServerData<User[]>('/api/users', { unnecessaryBody: true }); // GETの場合bodyは不要
-
-// ✅ 正しい使用方法  
-const response = await getServerData<User[]>('/api/users'); // GETの場合はbodyなし
-const response = await getServerData<User[]>('/api/users', { filter: 'active' }); // GETでフィルタ（クエリストリングに変換）
-const response = await postServerData<User[]>('/api/users/search', { limit: 10 }); // POSTでデータ付き
-```
-
-### Client Components での API 通信
-
-```typescript
-// src/components/UserForm.tsx
-'use client';
-
-import { useApiRequest } from '@/hooks';
-import { useState } from 'react';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
-
-export function UserForm() {
-  const api = useApiRequest();
-  const [users, setUsers] = useState<User[]>([]);
-
-  // データ取得（プロキシAPI経由、X-Languageヘッダー自動付与）
-  const fetchUsers = async () => {
-    const result = await api.get<User[]>('/api/backend/users');
-    if (result.ok && result.data) {
-      setUsers(result.data);
-    } else {
-      // エラーメッセージは現在の言語設定でローカライズ済み
-      console.error('取得エラー:', result.message);
-    }
-  };
-
-  // データ作成
-  const handleSubmit = async (formData: FormData) => {
-    const result = await api.create<User>('/api/backend/users', {
-      name: formData.get('name'),
-      email: formData.get('email'),
-    });
-
-    if (result.ok) {
-      console.log('ユーザーが作成されました:', result.data);
-      fetchUsers(); // リスト更新
-    } else {
-      // 多言語対応エラーメッセージ
-      console.error('作成エラー:', result.message);
-    }
-  };
-
-  // ファイルアップロード
-  const handleFileUpload = async (file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    const result = await api.upload<{url: string}>('/api/backend/upload', formData);
-    if (result.ok) {
-      console.log('アップロード完了:', result.data);
-    }
-  };
-
-  // ファイルダウンロード
-  const handleDownload = async () => {
-    const result = await api.download('/api/backend/users/export', { format: 'csv' });
-    // ダウンロードは自動的に実行される
-  };
-
-  return (
-    <div>
-      <form action={handleSubmit}>
-        <input name="name" placeholder="名前" required />
-        <input name="email" type="email" placeholder="メール" required />
-        <button type="submit">ユーザー作成</button>
-      </form>
-
-      <div>
-        <button onClick={fetchUsers}>ユーザー一覧を取得</button>
-        <button onClick={handleDownload}>CSV出力</button>
-        
-        {users.map(user => (
-          <div key={user.id}>
-            {user.name} ({user.email})
-            <button onClick={() => api.del(`/api/backend/users/${user.id}`, {})}>
-              削除
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-```
-
-#### Client Components での重要な特徴
-
-**プロキシAPI経由の通信：**
-
-- すべての通信は `/api/proxy` 経由でバックエンドにアクセス
-- JWTトークンはhttpOnlyクッキーで安全に管理
-- X-Language ヘッダーが現在の言語設定に基づいて自動付与
-
-**国際化対応：**
-
-- エラーメッセージは `useTranslation` フックによる現在の言語で表示
-- API通信時に選択中の言語がバックエンドに自動送信
-- 言語切り替え時にエラーメッセージも即座に切り替わる
-
-**ファイル処理：**
-
-- `upload`: FormData による multipart/form-data アップロード
-- `download`: 自動ダウンロード処理（ブラウザのダウンロード機能を使用）
-- CSV、Excel、PDF など様々なファイル形式に対応
-
-### 認証が必要なページの作成
-
-```typescript
-// src/app/(authenticated)/dashboard/page.tsx
-// (authenticated) フォルダ内に配置するだけで自動的に認証チェックが適用される
-
-export default function DashboardPage() {
-  // この関数は認証済みユーザーのみがアクセス可能
-  return (
-    <div>
-      <h1>ダッシュボード</h1>
-      <p>認証済みユーザーのみ表示されます</p>
-    </div>
-  );
-}
-```
-
-### ユーティリティ関数の使用
-
-```typescript
-// サーバーサイドAPI通信
-import { getServerData, postServerData } from '@/utils/serverApiProxy';
-
-// Server Component内でのデータ取得（国際化・JWT・X-Language対応）
-const response = await getServerData<User[]>('/api/backend/users');
-
-// POSTでのデータ作成
-const result = await postServerData<CreateResponse, CreateUserRequest>(
-  '/api/backend/users',
-  { name: 'John', email: 'john@example.com' },
-  { 'Custom-Header': 'value' }
-);
-
-// ファイル操作
-import { readFileAsText, isImageFile, formatFileSize } from '@/utils/file';
-
-// 文字列操作
-import { toCamelCase, toKebabCase, capitalize } from '@/utils/string';
-
-// バリデーション
-import { isEmpty, isValidEmail, isValidUrl } from '@/utils/validation';
-
-// 日付フォーマット
-import { formatDate, formatLocalDatetime } from '@/utils/dateFormat';
-
-// オブジェクトのディープコピー
-import { deepClone } from '@/utils/clone';
-
-// 文字列の左パディング
-import { padLeft } from '@/utils/padLeft';
-
-// クラス名管理
-import { cn } from '@/utils/classNames';
-
-const buttonClass = cn(
-  'px-4 py-2 rounded',
-  isActive && 'bg-blue-500 text-white',
-  isDisabled && 'opacity-50 cursor-not-allowed'
-);
-
-// 国際化（Server Components）
-import { getServerTranslation, getServerI18n } from '@/lib/i18n/server';
-
-// Server Component内での翻訳
-const welcomeMessage = await getServerTranslation('common:welcome', { name: 'John' });
-
-// より詳細な制御
-const { i18n, language } = await getServerI18n();
-const title = i18n.t('common:page.title');
-```
-
 ## セットアップ
 
 開発者の環境による違いによる差異を無くすため `Volta` を使用した開発環境のセットアップを行います。
@@ -485,15 +178,19 @@ pnpm lefthook install
 
 ## 開発
 
+デバッグ環境も構築しているので、ブレイクポイントを設定してコードを一時停止させることも可能です。
+
+サーバーサイドのモックをExpress.jsを使用して立ち上げることも可能です。
+
 ```bash
 # 開発サーバー起動
 pnpm dev
 
-# リント実行
-pnpm lint
+# リント・フォーマット実行
+pnpm check
 
-# フォーマット実行
-pnpm format
+# 型チェック実行
+pnpm check:type
 
 # テスト実行
 pnpm test
@@ -502,7 +199,7 @@ pnpm test
 pnpm storybook
 ```
 
-## ビルド
+## ビルド（本番用）
 
 ```bash
 # プロダクションビルド
@@ -563,6 +260,7 @@ chmod +x deploy/setup_ec2_dev.sh
 - `lint:fix` - Biomeでリント修正
 - `format` - Biomeでフォーマット
 - `check` - Biomeでチェック
+- `check:type` - 型チェック
 - `test` - Vitestでテスト実行
 - `test:watch` - Vitestでテスト監視
 - `test:coverage` - テストカバレッジ

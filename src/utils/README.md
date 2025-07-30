@@ -4,21 +4,26 @@
 
 ## ファイル構成
 
-### `serverApi.ts` - サーバーサイドAPI通信
+### `serverApiProxy.ts` - サーバーサイドAPI通信
 
-Server ComponentsでのSSR初期データ取得専用のAPI通信ユーティリティ。httpOnlyのcookieからJWTを自動取得し、国際化対応のX-Languageヘッダーを付与します。
+Server ComponentsでのSSR初期データ取得専用のAPI通信ユーティリティ。`/api/proxy` 経由でバックエンドサーバーと通信します。
 
 ```typescript
-import { serverPost, fetchServerData } from '@/utils/serverApi';
+import {
+  getServerData,
+  postServerData,
+  putServerData,
+  deleteServerData
+} from '@/utils/serverApiProxy';
 
-// Server Component内でのデータ取得
+// Server Component内でのデータ取得（GET）
 export default async function UsersPage() {
-  const response = await fetchServerData<User[]>('/api/backend/users');
-  
+  const response = await getServerData<User[]>('/api/backend/users');
+
   if (!response.ok) {
     return <div>エラーが発生しました: {response.message}</div>;
   }
-  
+
   return (
     <div>
       {response.data?.map(user => (
@@ -28,11 +33,18 @@ export default async function UsersPage() {
   );
 }
 
-// より詳細な制御が必要な場合
-const response = await serverPost<UserResponse, CreateUserRequest>(
+// POST/PUT/DELETE などの例
+const postRes = await postServerData<UserResponse, CreateUserRequest>(
   '/api/backend/users',
   { name: 'John', email: 'john@example.com' },
   { 'Custom-Header': 'value' }
+);
+const putRes = await putServerData<UserResponse, UpdateUserRequest>(
+  '/api/backend/users/1',
+  { name: 'Jane' }
+);
+const delRes = await deleteServerData<DeleteUserResponse>(
+  '/api/backend/users/1'
 );
 ```
 
@@ -176,6 +188,24 @@ copied.user.name = 'Jane'; // originalは変更されない
 
 // シャローコピー（第一階層のみコピー）
 const shallow = shallowClone(original);
+```
+
+### `env.ts` - 環境判定ユーティリティ
+
+`process.env.NODE_ENV` をラップし、環境ごとの分岐を簡潔に記述できます。
+
+```typescript
+import { isProd, isDev, isTest } from '@/utils/env';
+
+if (isProd) {
+  // 本番環境用の処理
+}
+if (isDev) {
+  // 開発環境用の処理
+}
+if (isTest) {
+  // テスト環境用の処理
+}
 ```
 
 ### `padLeft.ts` - 文字列の左パディング
