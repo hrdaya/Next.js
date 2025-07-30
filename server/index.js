@@ -93,4 +93,4 @@ router.post('/logout', (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`listen on port... ${PORT}`));
+app.listen(PORT, () => console.log(`listen on http://localhost:${PORT}`));

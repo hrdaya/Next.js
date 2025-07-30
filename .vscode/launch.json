@@ -5,17 +5,22 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Next.js",
+      "name": "Next: Node",
       "type": "node-terminal",
       "request": "launch",
       "command": "pnpm dev"
     },
     {
-      "name": "Server Mock",
-      "type": "node",
+      "name": "BackendServer: Mock",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/server/index.js",
-      "skipFiles": ["<node_internals>/**"]
+      "command": "pnpm dev:mock"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Next: Full",
+      "configurations": ["Next: Node", "BackendServer: Mock"]
     }
   ]
 }

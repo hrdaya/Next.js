@@ -11,6 +11,7 @@
     "lefthook",
     "Lngs",
     "NEXTAUTH",
+    "nodemon",
     "nosniff",
     "Noto",
     "officedocument",
@@ -21,6 +22,7 @@
     "Symfony",
     "turbopack",
     "Tymon",
+    "vercel",
     "Vitest",
     "winget"
   ],
