@@ -5,10 +5,16 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Next: Node",
+      "name": "Next: Server",
       "type": "node-terminal",
       "request": "launch",
       "command": "pnpm dev"
+    },
+    {
+      "name": "Next.js: Client",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000"
     },
     {
       "name": "BackendServer: Mock",
@@ -20,7 +26,11 @@
   "compounds": [
     {
       "name": "Next: Full",
-      "configurations": ["Next: Node", "BackendServer: Mock"]
+      "configurations": [
+        "BackendServer: Mock",
+        "Next: Server",
+        "Next.js: Client"
+      ]
     }
   ]
 }
